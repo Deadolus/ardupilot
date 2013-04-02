@@ -154,17 +154,17 @@ static void init_ardupilot()
     // hal.scheduler->delay.
     hal.scheduler->register_delay_callback(mavlink_delay_cb, 5);
 
-#if USB_MUX_PIN > 0
+//#if USB_MUX_PIN > 0
     if (!ap_system.usb_connected) {
         // we are not connected via USB, re-init UART0 with right
         // baud rate
         hal.uartA->begin(map_baudrate(g.serial3_baud, SERIAL3_BAUD));
     }
-#else
+//#else
     // we have a 2nd serial port for telemetry
     hal.uartC->begin(map_baudrate(g.serial3_baud, SERIAL3_BAUD), 128, 128);
     gcs3.init(hal.uartC);
-#endif
+//#endif
 
     // identify ourselves correctly with the ground station
     mavlink_system.sysid = g.sysid_this_mav;
