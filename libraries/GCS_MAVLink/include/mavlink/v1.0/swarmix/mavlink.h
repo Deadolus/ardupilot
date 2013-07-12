@@ -1,5 +1,5 @@
 /** @file
- *	@brief MAVLink comm protocol built from common.xml
+ *	@brief MAVLink comm protocol built from swarmix.xml
  *	@see http://pixhawk.ethz.ch/software/mavlink
  */
 #ifndef MAVLINK_H
@@ -22,6 +22,6 @@
 #endif
 
 #include "version.h"
-#include "../swarmix/swarmix.h"
+#include "swarmix.h"
 
 #endif // MAVLINK_H

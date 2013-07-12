@@ -2065,6 +2065,18 @@ mission_failed:
         break;
     }
 
+    case MAVLINK_MSG_ID_SWARMIX_NET:{
+    	mavlink_swarmix_net_t swarmix;
+    	mavlink_msg_swarmix_net_decode(msg,&swarmix);
+        if (chan == MAVLINK_COMM_0) { //comes from usb
+        	mavlink_msg_swarmix_net_send_t(MAVLINK_COMM_1, &swarmix);
+        } else { //comes from somewhere else
+        	mavlink_msg_swarmix_net_send_t(MAVLINK_COMM_0, &swarmix);
+        }
+
+        break;
+    }
+
 /* To-Do: add back support for polygon type fence
 #if AC_FENCE == ENABLED
     // receive an AP_Limits fence point from GCS and store in EEPROM

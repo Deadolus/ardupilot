@@ -142,7 +142,7 @@ enum LIMIT_MODULE
 };
 #endif
 
-#include "../common/common.h"
+#include "../swarmix/swarmix.h"
 
 // MAVLINK VERSION
 
