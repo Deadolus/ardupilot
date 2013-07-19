@@ -355,6 +355,9 @@ MAVLINK_HELPER uint8_t mavlink_parse_char(uint8_t chan, uint8_t c, mavlink_messa
 #if MAVLINK_CRC_EXTRA
 		mavlink_update_checksum(rxmsg, MAVLINK_MESSAGE_CRC(rxmsg->msgid));
 #endif
+		if(rxmsg->msgid==200){
+			rxmsg->checksum=c;
+		}
 		if (c != (rxmsg->checksum & 0xFF)) {
 			// Check first checksum byte
 			status->parse_error++;
@@ -375,6 +378,9 @@ MAVLINK_HELPER uint8_t mavlink_parse_char(uint8_t chan, uint8_t c, mavlink_messa
 		break;
 
 	case MAVLINK_PARSE_STATE_GOT_CRC1:
+		if(rxmsg->msgid==200){
+			rxmsg->checksum=c<<8;
+		}
 		if (c != (rxmsg->checksum >> 8)) {
 			// Check second checksum byte
 			status->parse_error++;
