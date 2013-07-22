@@ -248,6 +248,7 @@ enum ap_message {
     MSG_SIMSTATE,
     MSG_HWSTATUS,
     MSG_SYSTEM_TIME,
+    MSG_SWARMIX,
     MSG_RETRY_DEFERRED // this must be last
 };
 

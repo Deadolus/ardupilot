@@ -666,6 +666,12 @@ static bool mavlink_try_send_message(mavlink_channel_t chan, enum ap_message id,
         CHECK_PAYLOAD_SIZE(SYSTEM_TIME);
         send_system_time(chan);
         break;
+
+    case MSG_SWARMIX:
+        //todo: stream our real data
+       // CHECK_PAYLOAD_SIZE(SWARMIX);
+        mavlink_msg_swarmix_net_send(chan,5,8,42,1,2,3,4,5,6,7,8,1,2,3,4,5,6,7,8);
+        break;
     }
 
     return true;
@@ -958,6 +964,9 @@ bool GCS_MAVLINK::stream_trigger(enum streams stream_num)
         case STREAM_PARAMS:
             rate = streamRateParams.get();
             break;
+        case STREAM_SWARMIX:
+            rate = streamRateSwarmix.get();
+            break;
         default:
             rate = 0;
     }
@@ -1069,6 +1078,12 @@ GCS_MAVLINK::data_stream_send(void)
         send_message(MSG_AHRS);
         send_message(MSG_HWSTATUS);
     }
+
+    if (gcs_out_of_time) return;
+
+    if (stream_trigger(STREAM_SWARMIX)) {
+        send_message(MSG_SWARMIX);
+    }
 }
 
 
@@ -1129,6 +1144,7 @@ void GCS_MAVLINK::handleMessage(mavlink_message_t* msg)
             streamRateExtra2                        = freq;
             //streamRateExtra3.set_and_save(freq);	// We just do set and save on the last as it takes care of the whole group.
             streamRateExtra3                        = freq;                             // Don't save!!
+            streamRateSwarmix = freq;
             break;
 
         case MAV_DATA_STREAM_RAW_SENSORS:
@@ -1166,6 +1182,10 @@ void GCS_MAVLINK::handleMessage(mavlink_message_t* msg)
 
         case MAV_DATA_STREAM_EXTRA3:
             streamRateExtra3 = freq;
+            break;
+
+        case MAV_DATA_STREAM_SWARMIX:
+            streamRateSwarmix = freq;
             break;
 
         default:

@@ -117,6 +117,7 @@ public:
                   STREAM_EXTRA2,
                   STREAM_EXTRA3,
                   STREAM_PARAMS,
+                  STREAM_SWARMIX,
                   NUM_STREAMS};
 
     // see if we should send a stream now. Called at 50Hz
@@ -189,6 +190,7 @@ private:
     AP_Int16        streamRateExtra2;
     AP_Int16        streamRateExtra3;
     AP_Int16        streamRateParams;
+    AP_Int16        streamRateSwarmix;
 
     // number of 50Hz ticks until we next send this stream
     uint8_t         stream_ticks[NUM_STREAMS];
