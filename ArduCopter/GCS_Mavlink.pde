@@ -14,6 +14,12 @@ static bool mavlink_active;
 // true if we are out of time in our event timeslice
 static bool	gcs_out_of_time;
 
+//our snr values (get updated when a message is sent from overo)
+static int8_t 		swarmixRssiA = 0;
+static int8_t    	swarmixRssiB= 0;
+static int8_t    	swarmixSnrA = 0;
+static int8_t    	swarmixSnrB = 0;
+
 
 // check if a message will fit in the payload space available
 #define CHECK_PAYLOAD_SIZE(id) if (payload_space < MAVLINK_MSG_ID_ ## id ## _LEN) return false
@@ -527,7 +533,6 @@ static bool mavlink_try_send_message(mavlink_channel_t chan, enum ap_message id,
     if (telemetry_delayed(chan)) {
         return false;
     }
-
     // if we don't have at least 1ms remaining before the main loop
     // wants to fire then don't send a mavlink message. We want to
     // prioritise the main flight control loop over communications
@@ -535,7 +540,6 @@ static bool mavlink_try_send_message(mavlink_channel_t chan, enum ap_message id,
         gcs_out_of_time = true;
         return false;
     }
-
     switch(id) {
     case MSG_HEARTBEAT:
         CHECK_PAYLOAD_SIZE(HEARTBEAT);
@@ -670,7 +674,9 @@ static bool mavlink_try_send_message(mavlink_channel_t chan, enum ap_message id,
     case MSG_SWARMIX:
         //todo: stream our real data
        // CHECK_PAYLOAD_SIZE(SWARMIX);
-        mavlink_msg_swarmix_net_send(chan,5,8,42,1,2,3,4,5,6,7,8,1,2,3,4,5,6,7,8);
+    	Vector3f accel = ins.get_accel();
+        mavlink_msg_swarmix_net_send(chan,99,current_loc.lat,current_loc.lng,g_gps->altitude_cm*10,(current_loc.alt - home.alt) * 10,g_gps->ground_speed_cm,255,ahrs.roll,ahrs.pitch,ahrs.yaw,255,battery_voltage1 * 1000,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
+        //mavlink_msg_swarmix_net_send(chan,id,lat,lon,alt,rel_alt,hdg,gnd_spd,air_spd,roll,pitch,yaw,hdg,vol_bat,xacc,yacc,zacc,rssi_a,rssi_bsnr_a,snr_b);
         break;
     }
 
@@ -2089,6 +2095,10 @@ mission_failed:
     	mavlink_swarmix_net_t swarmix;
     	mavlink_msg_swarmix_net_decode(msg,&swarmix);
         if (chan == MAVLINK_COMM_0) { //comes from usb
+        	swarmixRssiA = swarmix.RSSI_A;
+        	swarmixRssiB= swarmix.RSSI_B;
+        	swarmixSnrA = swarmix.SNR_A;
+        	swarmixSnrB = swarmix.SNR_B;
         	mavlink_msg_swarmix_net_send_t(MAVLINK_COMM_1, &swarmix);
         } else { //comes from somewhere else
         	mavlink_msg_swarmix_net_send_t(MAVLINK_COMM_0, &swarmix);
