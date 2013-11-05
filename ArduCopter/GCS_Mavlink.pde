@@ -675,7 +675,7 @@ static bool mavlink_try_send_message(mavlink_channel_t chan, enum ap_message id,
         //todo: stream our real data
        // CHECK_PAYLOAD_SIZE(SWARMIX);
     	Vector3f accel = ins.get_accel();
-        mavlink_msg_swarmix_net_send(chan,99,current_loc.lat,current_loc.lng,g_gps->altitude_cm*10,(current_loc.alt - home.alt) * 10,g_gps->ground_speed_cm,255,ahrs.roll,ahrs.pitch,ahrs.yaw,255,battery_voltage1 * 1000,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
+        mavlink_msg_swarmix_net_send(chan,mavlink_system.sysid,current_loc.lat,current_loc.lng,g_gps->altitude_cm*10,(current_loc.alt - home.alt) * 10,g_gps->ground_speed_cm,255,ahrs.roll,ahrs.pitch,ahrs.yaw,255,battery_voltage1 * 1000,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
         //mavlink_msg_swarmix_net_send(chan,id,lat,lon,alt,rel_alt,hdg,gnd_spd,air_spd,roll,pitch,yaw,hdg,vol_bat,xacc,yacc,zacc,rssi_a,rssi_bsnr_a,snr_b);
         break;
     }
@@ -1932,7 +1932,7 @@ mission_failed:
         // allow override of RC channel values for HIL
         // or for complete GCS control of switch position
         // and RC PWM values.
-        if(msg->sysid != g.sysid_my_gcs) break;                         // Only accept control from our gcs
+        //if(msg-> != g.sysid_my_gcs) break;                         // Only accept control from our gcs
         mavlink_rc_channels_override_t packet;
         int16_t v[8];
         mavlink_msg_rc_channels_override_decode(msg, &packet);
