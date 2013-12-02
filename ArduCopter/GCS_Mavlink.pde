@@ -1233,6 +1233,12 @@ void GCS_MAVLINK::handleMessage(mavlink_message_t* msg)
             set_mode(AUTO);
             result = MAV_RESULT_ACCEPTED;
             break;
+        case MAV_CMD_CONDITION_YAW:
+        	yaw_look_at_heading = wrap_360_cd(packet.param1 * 100);
+        	yaw_look_at_heading_slew = AUTO_YAW_SLEW_RATE;
+        	set_yaw_mode(YAW_LOOK_AT_HEADING);
+        	result = MAV_RESULT_ACCEPTED;
+            break;
 
         case MAV_CMD_PREFLIGHT_CALIBRATION:
             if (packet.param1 == 1 ||
