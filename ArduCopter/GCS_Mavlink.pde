@@ -1234,8 +1234,22 @@ void GCS_MAVLINK::handleMessage(mavlink_message_t* msg)
             result = MAV_RESULT_ACCEPTED;
             break;
         case MAV_CMD_CONDITION_YAW:
-        	yaw_look_at_heading = wrap_360_cd(packet.param1 * 100);
-        	yaw_look_at_heading_slew = AUTO_YAW_SLEW_RATE;
+            // get final angle, 1 = Relative, 0 = Absolute
+            if( packet.param4 == 0 ) {
+                // absolute angle
+            	yaw_look_at_heading = wrap_360_cd(packet.param1 * 100);
+            }else{
+                // relative angle
+                yaw_look_at_heading = wrap_360_cd(nav_yaw+packet.param1 * 100);
+            }
+            // get turn speed
+              if( packet.param2 == 0 ) {
+                  // default to regular auto slew rate
+                  yaw_look_at_heading_slew = AUTO_YAW_SLEW_RATE;
+              }else{
+                  int32_t turn_rate = (wrap_180_cd(yaw_look_at_heading - nav_yaw) / 100) / packet.param2;
+                  yaw_look_at_heading_slew = constrain_int32(turn_rate, 1, 360);    // deg / sec
+              }
         	set_yaw_mode(YAW_LOOK_AT_HEADING);
         	result = MAV_RESULT_ACCEPTED;
             break;
