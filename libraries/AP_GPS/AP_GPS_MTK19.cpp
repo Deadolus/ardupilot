@@ -1,29 +1,31 @@
 // -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
+/*
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 //
 //  DIYDrones Custom Mediatek GPS driver for ArduPilot and ArduPilotMega.
 //    Code by Michael Smith, Jordi Munoz and Jose Julio, Craig Elder, DIYDrones.com
 //
-//    This library is free software; you can redistribute it and / or
-//    modify it under the terms of the GNU Lesser General Public
-//    License as published by the Free Software Foundation; either
-//    version 2.1 of the License, or (at your option) any later version.
-//
 //    GPS configuration : Custom protocol per "DIYDrones Custom Binary Sentence Specification V1.6, v1.7, v1.8, v1.9"
 //
-//   Note that this driver supports both the 1.6 and 1.9 protocol variants
+//   Note that this driver supports both the 1.6 and 1.9 protocol varients
 //
 
 #include <AP_HAL.h>
 #include "AP_GPS_MTK19.h"
 #include <stdint.h>
-#include <inttypes.h>
-
-#define MTK_DEBUGGING 0
-#if MTK_DEBUGGING
- # define Debug(fmt, args ...)  do {hal.console->printf("%s:%d: " fmt "\n", __FUNCTION__, __LINE__, ## args); hal.scheduler->delay(1); } while(0)
-#else
- # define Debug(fmt, args ...)
-#endif
 
 extern const AP_HAL::HAL& hal;
 
@@ -49,11 +51,6 @@ AP_GPS_MTK19::init(AP_HAL::UARTDriver *s, enum GPS_Engine_Setting nav_setting)
 
     // Set Nav Threshold to 0 m/s
     _port->print(MTK_NAVTHRES_OFF);
-
-    // set initial epoch code
-    _epoch = TIME_OF_DAY;
-    _time_offset = 0;
-    _offset_calculated = false;
 }
 
 // Process bytes available from the stream
@@ -166,18 +163,27 @@ restart:
             ground_course_cd        = _buffer.msg.ground_course;
             num_sats                = _buffer.msg.satellites;
             hdop                    = _buffer.msg.hdop;
-            date                    = _buffer.msg.utc_date;
-
-            uint32_t time_utc        = _buffer.msg.utc_time;
-            mseconds= time_utc%1000;
-            //eliminate mseconds, else we get erroneus data, cast error?
-            time_utc/=1000;
-            year = (unsigned int)(date%100+2000);
-            month = (unsigned int)(date/100)%100;
-            day=(unsigned int)(date/10000);
-            hour=(unsigned int)(time_utc/1e4);
-            minutes=(unsigned int)(time_utc/1e2)%100;
-            seconds=(unsigned int)(time_utc%100);
+            
+            if (fix >= GPS::FIX_2D) {
+                if (_fix_counter == 0) {
+                    uint32_t bcd_time_ms;
+                    if (_mtk_revision == MTK_GPS_REVISION_V16) {
+                        bcd_time_ms = _buffer.msg.utc_time*10;
+                    } else {
+                        bcd_time_ms = _buffer.msg.utc_time;
+                    }
+                    _make_gps_time(_buffer.msg.utc_date, bcd_time_ms);
+                    _last_gps_time          = hal.scheduler->millis();
+                }
+                // the _fix_counter is to reduce the cost of the GPS
+                // BCD time conversion by only doing it every 10s
+                // between those times we use the HAL system clock as
+                // an offset from the last fix
+                _fix_counter++;
+                if (_fix_counter == 50) {
+                    _fix_counter = 0;
+                }
+            }
 
             parsed                  = true;
 

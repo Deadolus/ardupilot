@@ -18,12 +18,12 @@
 
 // failsafe
 // ----------------------
-#define FAILSAFE_NONE   0
-#define FAILSAFE_SHORT  1
-#define FAILSAFE_LONG   2
-#define FAILSAFE_GCS    3
-#define FAILSAFE_SHORT_TIME 1500        // Miliiseconds
-#define FAILSAFE_LONG_TIME  20000       // Miliiseconds
+enum failsafe_state {
+    FAILSAFE_NONE=0,
+    FAILSAFE_SHORT=1,
+    FAILSAFE_LONG=2,
+    FAILSAFE_GCS=3
+};
 
 
 // active altitude sensor
@@ -63,6 +63,7 @@ enum FlightMode {
     ACRO          = 4,
     FLY_BY_WIRE_A = 5,
     FLY_BY_WIRE_B = 6,
+    CRUISE        = 7,
     AUTO          = 10,
     RTL           = 11,
     LOITER        = 12,
@@ -129,6 +130,7 @@ enum ap_message {
     MSG_RAW_IMU2,
     MSG_RAW_IMU3,
     MSG_GPS_RAW,
+    MSG_SYSTEM_TIME,
     MSG_SERVO_OUT,
     MSG_NEXT_WAYPOINT,
     MSG_NEXT_PARAM,
@@ -138,6 +140,7 @@ enum ap_message {
     MSG_SIMSTATE,
     MSG_HWSTATUS,
     MSG_WIND,
+    MSG_RANGEFINDER,
     MSG_RETRY_DEFERRED // this must be last
 };
 
@@ -159,6 +162,8 @@ enum log_messages {
     LOG_MODE_MSG,
     LOG_COMPASS_MSG,
     LOG_TECS_MSG,
+    LOG_RC_MSG,
+    LOG_SONAR_MSG,
     MAX_NUM_LOGS // always at the end
 };
 
@@ -175,6 +180,8 @@ enum log_messages {
 #define MASK_LOG_COMPASS                (1<<10)
 #define MASK_LOG_TECS                   (1<<11)
 #define MASK_LOG_CAMERA                 (1<<12)
+#define MASK_LOG_RC                     (1<<13)
+#define MASK_LOG_SONAR                  (1<<14)
 
 // Waypoint Modes
 // ----------------
@@ -198,10 +205,6 @@ enum log_messages {
 #define ALTITUDE_HISTORY_LENGTH 8       //Number of (time,altitude) points to
                                         // regress a climb rate from
 
-
-#define BATTERY_VOLTAGE(x) (x->voltage_average()*g.volt_div_ratio)
-#define CURRENT_AMPS(x) (x->voltage_average()-g.curr_amp_offset)*g.curr_amp_per_volt
-
 #define AN4                     4
 #define AN5                     5
 
@@ -222,7 +225,12 @@ enum log_messages {
 #define FENCE_WP_SIZE sizeof(Vector2l)
 #define FENCE_START_BYTE (EEPROM_MAX_ADDR-(MAX_FENCEPOINTS*FENCE_WP_SIZE))
 
-#define MAX_WAYPOINTS  ((FENCE_START_BYTE - WP_START_BYTE) / WP_SIZE) - 1 // -
+// rally points shoehorned between fence points and waypoints
+#define MAX_RALLYPOINTS 10
+#define RALLY_WP_SIZE 15
+#define RALLY_START_BYTE (FENCE_START_BYTE-(MAX_RALLYPOINTS*RALLY_WP_SIZE))
+
+#define MAX_WAYPOINTS  ((RALLY_START_BYTE - WP_START_BYTE) / WP_SIZE) - 1 // -
                                                                           // 1
                                                                           // to
                                                                           // be
@@ -238,8 +246,10 @@ enum log_messages {
 // InertialSensor driver types
 #define CONFIG_INS_OILPAN  1
 #define CONFIG_INS_MPU6000 2
-#define CONFIG_INS_STUB    3
+#define CONFIG_INS_HIL     3
 #define CONFIG_INS_PX4     4
+#define CONFIG_INS_FLYMAPLE 5
+#define CONFIG_INS_L3G4200D 6
 
 // barometer driver types
 #define AP_BARO_BMP085   1
@@ -256,7 +266,8 @@ enum log_messages {
 enum {
     ALT_CONTROL_DEFAULT      = 0,
     ALT_CONTROL_NON_AIRSPEED = 1,
-    ALT_CONTROL_TECS         = 2
+    ALT_CONTROL_TECS         = 2,
+    ALT_CONTROL_AIRSPEED     = 3
 };
 
 // attitude controller choice

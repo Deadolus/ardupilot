@@ -74,10 +74,12 @@ enum MAV_CMD
 	MAV_CMD_DO_SET_SERVO=183, /* Set a servo to a desired PWM value. |Servo number| PWM (microseconds, 1000 to 2000 typical)| Empty| Empty| Empty| Empty| Empty|  */
 	MAV_CMD_DO_REPEAT_SERVO=184, /* Cycle a between its nominal setting and a desired PWM for a desired number of cycles with a desired period. |Servo number| PWM (microseconds, 1000 to 2000 typical)| Cycle count| Cycle time (seconds)| Empty| Empty| Empty|  */
 	MAV_CMD_DO_CONTROL_VIDEO=200, /* Control onboard camera system. |Camera ID (-1 for all)| Transmission: 0: disabled, 1: enabled compressed, 2: enabled raw| Transmission mode: 0: video stream, >0: single images every n seconds (decimal)| Recording: 0: disabled, 1: enabled compressed, 2: enabled raw| Empty| Empty| Empty|  */
+	MAV_CMD_DO_SET_ROI=201, /* Sets the region of interest (ROI) for a sensor set or the vehicle itself. This can then be used by the vehicles control system to control the vehicle attitude and the attitude of various sensors such as cameras. |Region of intereset mode. (see MAV_ROI enum)| MISSION index/ target ID. (see MAV_ROI enum)| ROI index (allows a vehicle to manage multiple ROI's)| Empty| x the location of the fixed ROI (see MAV_FRAME)| y| z|  */
 	MAV_CMD_DO_DIGICAM_CONFIGURE=202, /* Mission command to configure an on-board camera controller system. |Modes: P, TV, AV, M, Etc| Shutter speed: Divisor number for one second| Aperture: F stop number| ISO number e.g. 80, 100, 200, Etc| Exposure type enumerator| Command Identity| Main engine cut-off time before camera trigger in seconds/10 (0 means no cut-off)|  */
 	MAV_CMD_DO_DIGICAM_CONTROL=203, /* Mission command to control an on-board camera controller system. |Session control e.g. show/hide lens| Zoom's absolute position| Zooming step value to offset zoom from the current position| Focus Locking, Unlocking or Re-locking| Shooting Command| Command Identity| Empty|  */
 	MAV_CMD_DO_MOUNT_CONFIGURE=204, /* Mission command to configure a camera or antenna mount |Mount operation mode (see MAV_MOUNT_MODE enum)| stabilize roll? (1 = yes, 0 = no)| stabilize pitch? (1 = yes, 0 = no)| stabilize yaw? (1 = yes, 0 = no)| Empty| Empty| Empty|  */
 	MAV_CMD_DO_MOUNT_CONTROL=205, /* Mission command to control a camera or antenna mount |pitch(deg*100) or lat, depending on mount mode.| roll(deg*100) or lon depending on mount mode| yaw(deg*100) or alt (in cm) depending on mount mode| Empty| Empty| Empty| Empty|  */
+	MAV_CMD_DO_SET_CAM_TRIGG_DIST=206, /* Mission command to set CAM_TRIGG_DIST for this flight |Camera trigger distance (meters)| Empty| Empty| Empty| Empty| Empty| Empty|  */
 	MAV_CMD_DO_LAST=240, /* NOP - This command is only used to mark the upper limit of the DO commands in the enumeration |Empty| Empty| Empty| Empty| Empty| Empty| Empty|  */
 	MAV_CMD_PREFLIGHT_CALIBRATION=241, /* Trigger calibration. This command will be only accepted if in pre-flight mode. |Gyro calibration: 0: no, 1: yes| Magnetometer calibration: 0: no, 1: yes| Ground pressure: 0: no, 1: yes| Radio calibration: 0: no, 1: yes| Accelerometer calibration: 0: no, 1: yes| Empty| Empty|  */
 	MAV_CMD_PREFLIGHT_SET_SENSOR_OFFSETS=242, /* Set sensor offsets. This command will be only accepted if in pre-flight mode. |Sensor to adjust the offsets for: 0: gyros, 1: accelerometer, 2: magnetometer, 3: barometer, 4: optical flow| X axis offset (or generic dimension 1), in the sensor's raw units| Y axis offset (or generic dimension 2), in the sensor's raw units| Z axis offset (or generic dimension 3), in the sensor's raw units| Generic dimension 4, in the sensor's raw units| Generic dimension 5, in the sensor's raw units| Generic dimension 6, in the sensor's raw units|  */
@@ -98,7 +100,8 @@ enum FENCE_ACTION
 	FENCE_ACTION_NONE=0, /* Disable fenced mode | */
 	FENCE_ACTION_GUIDED=1, /* Switched to guided mode to return point (fence point 0) | */
 	FENCE_ACTION_REPORT=2, /* Report fence breach, but don't take action | */
-	FENCE_ACTION_ENUM_END=3, /*  | */
+	FENCE_ACTION_GUIDED_THR_PASS=3, /* Switched to guided mode to return point (fence point 0) with manual throttle control | */
+	FENCE_ACTION_ENUM_END=4, /*  | */
 };
 #endif
 
@@ -109,7 +112,7 @@ enum FENCE_BREACH
 {
 	FENCE_BREACH_NONE=0, /* No last fence breach | */
 	FENCE_BREACH_MINALT=1, /* Breached minimum altitude | */
-	FENCE_BREACH_MAXALT=2, /* Breached minimum altitude | */
+	FENCE_BREACH_MAXALT=2, /* Breached maximum altitude | */
 	FENCE_BREACH_BOUNDARY=3, /* Breached fence boundary | */
 	FENCE_BREACH_ENUM_END=4, /*  | */
 };
@@ -139,6 +142,17 @@ enum LIMIT_MODULE
 	LIMIT_GEOFENCE=2, /*  disabled | */
 	LIMIT_ALTITUDE=4, /*  checking limits | */
 	LIMIT_MODULE_ENUM_END=5, /*  | */
+};
+#endif
+
+/** @brief Flags in RALLY_POINT message */
+#ifndef HAVE_ENUM_RALLY_FLAGS
+#define HAVE_ENUM_RALLY_FLAGS
+enum RALLY_FLAGS
+{
+	FAVORABLE_WIND=1, /* Flag set when requiring favorable winds for landing.  | */
+	LAND_IMMEDIATELY=2, /* Flag set when plane is to immediately descend to break altitude and land without GCS intervention.  Flag not set when plane is to loiter at Rally point until commanded to land. | */
+	RALLY_FLAGS_ENUM_END=3, /*  | */
 };
 #endif
 
@@ -179,6 +193,9 @@ enum LIMIT_MODULE
 #include "./mavlink_msg_data64.h"
 #include "./mavlink_msg_data96.h"
 #include "./mavlink_msg_rangefinder.h"
+#include "./mavlink_msg_airspeed_autocal.h"
+#include "./mavlink_msg_rally_point.h"
+#include "./mavlink_msg_rally_fetch_point.h"
 
 #ifdef __cplusplus
 }

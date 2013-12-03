@@ -10,6 +10,7 @@
 
 #include <inttypes.h>
 #include <AP_Progmem.h>
+#include <AP_Math.h>
 
 /// @class	GPS
 /// @brief	Abstract base class for GPS receiver drivers.
@@ -71,24 +72,6 @@ public:
         return _status;
     }
 
-    /// GPS time epoch codes
-    ///
-    enum        GPS_Time_Epoch {
-        TIME_OF_DAY     = 0,            ///<
-        TIME_OF_WEEK    = 1,            ///< Ublox
-        TIME_OF_YEAR    = 2,            ///< MTK, NMEA
-        UNIX_EPOCH              = 3                     ///< If available
-    };                                                                  ///< SIFR?
-
-
-    /// Query GPS time epoch
-    ///
-    /// @returns			Current GPS time epoch code
-    ///
-    GPS_Time_Epoch              epoch(void) {
-        return _epoch;
-    }
-
     /// Startup initialisation.
     ///
     /// This routine performs any one-off initialisation required to set the
@@ -99,8 +82,8 @@ public:
     virtual void        init(AP_HAL::UARTDriver *s, enum GPS_Engine_Setting engine_setting = GPS_ENGINE_NONE) = 0;
 
     // Properties
-    uint32_t time;                      ///< GPS time (milliseconds from epoch)
-    uint32_t date;                      ///< GPS date (FORMAT TBD)
+    uint32_t time_week_ms;              ///< GPS time (milliseconds from start of GPS week)
+    uint16_t time_week;                 ///< GPS week number
     int32_t latitude;                   ///< latitude in degrees * 10,000,000
     int32_t longitude;                  ///< longitude in degrees * 10,000,000
     int32_t altitude_cm;                ///< altitude in cm
@@ -109,13 +92,6 @@ public:
     int32_t speed_3d_cm;                ///< 3D speed in cm/sec (not always available)
     int16_t hdop;                       ///< horizontal dilution of precision in cm
     uint8_t num_sats;           ///< Number of visible satelites
-    uint16_t year;
-    uint8_t month;
-    uint8_t day;
-    uint8_t hour;
-    uint8_t minutes;
-    uint8_t seconds;
-    int32_t mseconds;
 
     /// Set to true when new data arrives.  A client may set this
     /// to false in order to avoid processing data they have
@@ -129,18 +105,23 @@ public:
     bool print_errors;          ///< deprecated
 
     // HIL support
-    virtual void setHIL(uint32_t time, float latitude, float longitude, float altitude,
+    virtual void setHIL(uint64_t time_epoch_ms, float latitude, float longitude, float altitude,
                         float ground_speed, float ground_course, float speed_3d, uint8_t num_sats);
 
     // components of velocity in 2D, in m/s
-    float velocity_north(void) {
+    float velocity_north(void) const {
         return _status >= GPS_OK_FIX_2D ? _velocity_north : 0;
     }
-    float velocity_east(void)  {
+    float velocity_east(void)  const {
         return _status >= GPS_OK_FIX_2D ? _velocity_east  : 0;
     }
-    float velocity_down(void)  {
+    float velocity_down(void)  const {
         return _status >= GPS_OK_FIX_3D ? _velocity_down  : 0;
+    }
+
+    // GPS velocity vector as NED in m/s
+    Vector3f velocity_vector(void) const {
+        return Vector3f(_velocity_north, _velocity_east, _velocity_down);
     }
 
     // last ground speed in m/s. This can be used when we have no GPS
@@ -158,19 +139,10 @@ public:
 	// the time we last processed a message in milliseconds
 	uint32_t last_message_time_ms(void) { return _idleTimer; }
 
+    // return last fix time since the 1/1/1970 in microseconds
+    uint64_t time_epoch_usec(void);
+
 	// return true if the GPS supports raw velocity values
-
-	//get Time e.g. 12:05:13.100=120513100
-	virtual uint32_t getTimeUTC() {return 0;};
-
-	//get Date e.g. 2013/12/30 = 20131230
-	virtual uint32_t getDateUTC() {return 0;};
-
-	//get DateTime Stamp e.g. 20131230120513100
-	virtual uint64_t getDateTimeUTC() {return 0;};
-
-	//get Unix time with milisecond precision e.g. 1370863126799
-	virtual uint64_t getUnixTimeUTC() {return 0;}
 
 
 protected:
@@ -211,9 +183,6 @@ protected:
     ///
     void                        _error(const char *msg);
 
-    /// Time epoch code for the gps in use
-    GPS_Time_Epoch _epoch;
-
     enum GPS_Engine_Setting _nav_setting;
 
     void _write_progstr_block(AP_HAL::UARTDriver *_fs, const prog_char *pstr, uint8_t size);
@@ -231,10 +200,11 @@ protected:
 	// detected baudrate
 	uint16_t _baudrate;
 
-    //utc to epoch time converter, copied from standard time.h
-    uint64_t _mktime(const unsigned int year0, const unsigned int mon0,
-	        const unsigned int day, const unsigned int hour,
-	        const unsigned int min, const unsigned int sec);
+    // the time we got the last GPS timestamp
+    uint32_t _last_gps_time;
+
+    // return time in seconds since GPS epoch given time components
+    void _make_gps_time(uint32_t bcd_date, uint32_t bcd_milliseconds);
 
 private:
 

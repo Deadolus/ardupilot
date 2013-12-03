@@ -1,12 +1,22 @@
 // -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
+/*
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 //
 //  DIYDrones Custom Mediatek GPS driver for ArduPilot and ArduPilotMega.
 //	Code by Michael Smith, Jordi Munoz and Jose Julio, Craig Elder, DIYDrones.com
-//
-//	This library is free software; you can redistribute it and / or
-//	modify it under the terms of the GNU Lesser General Public
-//	License as published by the Free Software Foundation; either
-//	version 2.1 of the License, or (at your option) any later version.
 //
 //	GPS configuration : Custom protocol per "Customize Function Specification, 3D Robotics, v1.6, v1.7, v1.8, v1.9"
 //
@@ -16,7 +26,6 @@
 #include "GPS.h"
 #include <AP_Common.h>
 #include "AP_GPS_MTK_Common.h"
-#include <inttypes.h>
 
 #define MTK_GPS_REVISION_V16  16
 #define MTK_GPS_REVISION_V19  19
@@ -28,34 +37,13 @@ public:
 		GPS(),
 		_step(0),
 		_payload_counter(0),
-		_mtk_revision(0)
+		_mtk_revision(0),
+        _fix_counter(0)
 		{}
 
     virtual void        init(AP_HAL::UARTDriver *s, enum GPS_Engine_Setting nav_setting = GPS_ENGINE_NONE);
     virtual bool        read(void);
     static bool 		_detect(uint8_t );
-
-	//get Time e.g. 12:05:13.100=120513100
-    uint32_t getTimeUTC() {
-    	//there doesn't seem to be a valid flag as for Ublox, so just check if we have at least 2D_fix
-    	return status() >= GPS_OK_FIX_2D  ? (uint32_t)(((hour*(uint32_t)100+minutes)*(uint32_t)100+seconds)*(uint32_t)1000+mseconds)  : 0;
-    }
-
-	//get Date e.g. 2013/12/30 = 20131230
-	uint32_t getDateUTC(){
-		//there doesn't seem to be a valid flag as for Ublox, so just check if we have at least 2D_fix
-		return (status() >= GPS_OK_FIX_2D)  ? (uint32_t)((year*(uint32_t)100+month)*(uint32_t)100+day)  : 0;
-	}
-
-	//get DateTime Stamp e.g. 20131230120513100
-	virtual uint64_t getDateTimeUTC() {
-		return (status() >= GPS_OK_FIX_2D)  ? (uint64_t)getDateUTC()*(uint64_t)1e9+(uint64_t)getTimeUTC() : 0;
-	};
-
-	//get Unix time with milisecond precision e.g. 1370863126799
-	uint64_t getUnixTimeUTC() {
-		return (status() >= GPS_OK_FIX_2D)  ?  _mktime(year,month,day,hour,minutes,seconds)*(uint64_t)1000+mseconds : 0;
-	}
 
 private:
     struct PACKED diyd_mtk_msg {
@@ -93,9 +81,7 @@ private:
     uint8_t         _payload_counter;
 	uint8_t			_mtk_revision;
 
-    // Time from UNIX Epoch offset
-    uint64_t            _time_offset;
-    bool            _offset_calculated;
+    uint8_t         _fix_counter;
 
     // Receive buffer
     union {

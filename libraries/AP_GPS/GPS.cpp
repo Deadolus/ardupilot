@@ -5,6 +5,7 @@
 #include <AP_Common.h>
 #include <AP_Math.h>
 #include <AP_HAL.h>
+#include <AP_Notify.h>
 #include "GPS.h"
 
 extern const AP_HAL::HAL& hal;
@@ -19,20 +20,28 @@ extern const AP_HAL::HAL& hal;
 
 GPS::GPS(void) :
 	// ensure all the inherited fields are zeroed
-	time(0),
+	time_week_ms(0),
+    time_week(0),
+    latitude(0),
+    longitude(0),
+    altitude_cm(0),
+    ground_speed_cm(0),
+    ground_course_cd(0),
+    speed_3d_cm(0),
+    hdop(0),
 	num_sats(0),
 	new_data(false),
 	fix(FIX_NONE),
 	valid_read(false),
 	last_fix_time(0),
 	_have_raw_velocity(false),
+    _last_gps_time(0),
 	_idleTimer(0),
 	_status(GPS::NO_FIX),
 	_last_ground_speed_cm(0),
 	_velocity_north(0),
 	_velocity_east(0),
 	_velocity_down(0)
-
 {
 }
 
@@ -98,10 +107,13 @@ GPS::update(void)
             }
         }
     }
+
+    // update notify with gps status
+    AP_Notify::flags.gps_status = _status;
 }
 
 void
-GPS::setHIL(uint32_t _time, float _latitude, float _longitude, float _altitude,
+GPS::setHIL(uint64_t _time_epoch_ms, float _latitude, float _longitude, float _altitude,
             float _ground_speed, float _ground_course, float _speed_3d, uint8_t _num_sats)
 {
 }
@@ -211,38 +223,64 @@ int16_t GPS::_swapi(const void *bytes) const
     return(u.v);
 }
 
-/* Converts Gregorian date to seconds since 1970-01-01 00:00:00.
-  * Assumes input in normal date format, i.e. 1980-12-31 23:59:59
-  * => year=1980, mon=12, day=31, hour=23, min=59, sec=59.
-  *
-  * [For the Julian calendar (which was used in Russia before 1917,
-  * Britain & colonies before 1752, anywhere else before 1582,
-  * and is still in use by some communities) leave out the
-  * -year/100+year/400 terms, and add 10.]
-  *
-  * This algorithm was first published by Gauss (I think).
-  *
-  * WARNING: this function will overflow on 2106-02-07 06:28:16 on
-  * machines where long is 32-bit! (However, as time_t is signed, we
-  * will already get problems at other places on 2038-01-19 03:14:08)
-  */
-uint64_t  GPS::_mktime(const unsigned int year0, const unsigned int mon0,
-		        const unsigned int day, const unsigned int hour,
-		        const unsigned int min, const unsigned int sec)
-		 {
-		         unsigned int mon = mon0, year = year0;
+/**
+   current time since the unix epoch in microseconds
 
-		         /* 1..12 -> 11,12,1..10 */
-		         if (0 >= (int) (mon -= 2)) {
-		                 mon += 12;      /* Puts Feb last since it has leap day */
-		                 year -= 1;
-		         }
+   This costs about 60 usec on AVR2560
+ */
+uint64_t GPS::time_epoch_usec(void)
+{
+    if (_last_gps_time == 0) {
+        return 0;
+    }
+    const uint64_t ms_per_week = 7000ULL*86400ULL;
+    const uint64_t unix_offset = 17000ULL*86400ULL + 52*10*7000ULL*86400ULL - 15000ULL;
+    uint64_t fix_time_ms = unix_offset + time_week*ms_per_week + time_week_ms;
+    // add in the milliseconds since the last fix
+    return (fix_time_ms + (hal.scheduler->millis() - _last_gps_time)) * 1000ULL;
+}
 
-		         return ((((uint64_t)
-		                   (year/(uint64_t)4 - year/(uint64_t)100 + year/(uint64_t)400 + (uint64_t)367*mon/(uint64_t)12 + day) +
-		                   year*(uint64_t)365 - (uint64_t)719499
-		             )*(uint64_t)24 + hour /* now have hours */
-		           )*(uint64_t)60 + min /* now have minutes */
-		         )*(uint64_t)60 + sec; /* finally seconds */
-		 }
 
+/**
+   fill in time_week_ms and time_week from BCD date and time components
+   assumes MTK19 millisecond form of bcd_time
+
+   This function takes about 340 usec on the AVR2560
+ */
+void GPS::_make_gps_time(uint32_t bcd_date, uint32_t bcd_milliseconds)
+{
+    uint8_t year, mon, day, hour, min, sec;
+    uint16_t msec;
+
+    year = bcd_date % 100;
+    mon  = (bcd_date / 100) % 100;
+    day  = bcd_date / 10000;
+    msec = bcd_milliseconds % 1000;
+
+    uint32_t v = bcd_milliseconds;
+    msec = v % 1000; v /= 1000;
+    sec  = v % 100; v /= 100;
+    min  = v % 100; v /= 100;
+    hour = v % 100; v /= 100;
+
+    int8_t rmon = mon - 2;
+    if (0 >= rmon) {    
+        rmon += 12;
+        year -= 1;
+    }
+
+    // get time in seconds since unix epoch
+    uint32_t ret = (year/4) - 15 + 367*rmon/12 + day;
+    ret += year*365 + 10501;
+    ret = ret*24 + hour;
+    ret = ret*60 + min;
+    ret = ret*60 + sec;
+
+    // convert to time since GPS epoch
+    ret -= 272764785UL;
+
+    // get GPS week and time
+    time_week = ret / (7*86400UL);
+    time_week_ms = (ret % (7*86400UL)) * 1000;
+    time_week_ms += msec;
+}

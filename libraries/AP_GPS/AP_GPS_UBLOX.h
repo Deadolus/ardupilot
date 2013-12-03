@@ -1,12 +1,22 @@
 // -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
+/*
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 //
 //  u-blox UBX GPS driver for ArduPilot and ArduPilotMega.
 //	Code by Michael Smith, Jordi Munoz and Jose Julio, DIYDrones.com
-//
-//	This library is free software; you can redistribute it and / or
-//	modify it under the terms of the GNU Lesser General Public
-//	License as published by the Free Software Foundation; either
-//	version 2.1 of the License, or (at your option) any later version.
 //
 //  UBlox Lea6H protocol: http://www.u-blox.com/images/downloads/Product_Docs/u-blox6_ReceiverDescriptionProtocolSpec_%28GPS.G6-SW-10018%29.pdf
 #ifndef __AP_GPS_UBLOX_H__
@@ -41,7 +51,9 @@ public:
 		_payload_counter(0),
 		_fix_count(0),
 		_disable_counter(0),
-		next_fix(GPS::FIX_NONE)
+		next_fix(GPS::FIX_NONE),
+        need_rate_update(false),
+        rate_update_step(0)
 		{}
 
     // Methods
@@ -53,26 +65,6 @@ public:
     static const uint8_t            _ublox_set_binary_size;
 
     float       get_lag() { return 0.5; }   // ublox lag is lower than the default 1second
-
-	//get Time e.g. 12:05:13.100=120513100
-    uint32_t getTimeUTC() {
-    	return ((_valid_time|0x07)==0x07)&&(status() >= GPS_OK_FIX_2D)  ? (uint32_t)(((hour*(uint32_t)100+minutes)*(uint32_t)100+seconds)*(uint32_t)1000+mseconds) : 0 ;//((hour*100+minutes)*100+seconds)*1000+mseconds  : 0;
-    }
-
-	//get Date e.g. 2013/12/30 = 20131230
-	uint32_t getDateUTC(){
-		return ((_valid_time|0x07)==0x07)&&(status() >= GPS_OK_FIX_2D)  ? (uint32_t)((year*(uint32_t)100+month)*(uint32_t)100+day) : 0;
-	}
-
-	//get DateTime Stamp e.g. 20131230120513100
-	virtual uint64_t getDateTimeUTC() {
-		return ((_valid_time|0x07)==0x07)&&(status() >= GPS_OK_FIX_2D)  ? (uint64_t)getDateUTC()*(uint64_t)1e9+(uint64_t)getTimeUTC() : 0;
-	};
-
-	//get Unix time with milisecond precision e.g. 1370863126799
-	uint64_t getUnixTimeUTC() {
-		return ((_valid_time|0x07)==0x07)&&(status() >= GPS_OK_FIX_2D)  ?  _mktime(year,month,day,hour,minutes,seconds)*(uint64_t)1000+mseconds : 0;
-	}
 
 private:
     // u-blox UBX protocol essentials
@@ -160,35 +152,12 @@ private:
         uint32_t speed_accuracy;
         uint32_t heading_accuracy;
     };
-    struct PACKED ubx_nav_timegps {
-        uint32_t time;
-        uint32_t fractional;
-        int16_t week;
-        int8_t leapS;
-        int8_t valid;
-        int32_t accuracyEstimate;
-    };
-    struct PACKED ubx_nav_timeutc {
-        uint32_t time;
-        int32_t accuracyEstimate;
-        int32_t nanoS;
-        int16_t year;
-        int8_t month;
-        int8_t day;
-        int8_t hour;
-        int8_t min;
-        int8_t sec;
-        int8_t valid;
-
-    };
     // Receive buffer
     union PACKED {
         ubx_nav_posllh posllh;
         ubx_nav_status status;
         ubx_nav_solution solution;
         ubx_nav_velned velned;
-        ubx_nav_timegps timegps;
-        ubx_nav_timeutc timeutc;
         ubx_cfg_nav_settings nav_settings;
         uint8_t bytes[];
     } _buffer;
@@ -208,9 +177,7 @@ private:
         MSG_CFG_PRT = 0x00,
         MSG_CFG_RATE = 0x08,
         MSG_CFG_SET_RATE = 0x01,
-        MSG_CFG_NAV_SETTINGS = 0x24,
-        MSG_TIMEGPS = 0x20,
-        MSG_TIMEUTC = 0x21
+        MSG_CFG_NAV_SETTINGS = 0x24
     };
     enum ubs_nav_fix_type {
         FIX_NONE = 0,
@@ -248,18 +215,22 @@ private:
 
     uint8_t         _disable_counter;
 
-    uint8_t 		_valid_time;
-
     // Buffer parse & GPS state update
     bool        _parse_gps();
 
     // used to update fix between status and position packets
     Fix_Status  next_fix;
 
+    bool need_rate_update;
+    uint8_t rate_update_step;
+    uint32_t _last_5hz_time;
+
+    void 	    _configure_navigation_rate(uint16_t rate_ms);
     void        _configure_message_rate(uint8_t msg_class, uint8_t msg_id, uint8_t rate);
     void        _configure_gps(void);
     void        _update_checksum(uint8_t *data, uint8_t len, uint8_t &ck_a, uint8_t &ck_b);
     void        _send_message(uint8_t msg_class, uint8_t msg_id, void *msg, uint8_t size);
+    void		send_next_rate_update(void);
 
 };
 
