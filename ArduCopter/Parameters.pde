@@ -261,9 +261,9 @@ const AP_Param::Info var_info[] PROGMEM = {
 
     // @Param: THR_MAX
     // @DisplayName: Throttle Maximum
-    // @Description: The maximum throttle that will be sent to the motors
+    // @Description: The maximum throttle that will be sent to the motors.  This should normally be left as 1000.
     // @Units: Percent*10
-    // @Range: 0 1000
+    // @Range: 800 1000
     // @Increment: 1
     // @User: Advanced
     GSCALAR(throttle_max,   "THR_MAX",          THR_MAX_DEFAULT),
@@ -352,7 +352,7 @@ const AP_Param::Info var_info[] PROGMEM = {
     // @Param: LOG_BITMASK
     // @DisplayName: Log bitmask
     // @Description: 2 byte bitmap of log types to enable
-    // @Values: 0:Disabled,830:Default,958:Default+IMU,1854:Default+Motors,17214:Default+INav
+    // @Values: 0:Disabled,830:Default,894:Default+RCIN,958:Default+IMU,1854:Default+Motors,17214:Default+INav,-6146:NearlyAll
     // @User: Standard
     GSCALAR(log_bitmask,    "LOG_BITMASK",          DEFAULT_LOG_BITMASK),
 
