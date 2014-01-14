@@ -681,11 +681,9 @@ static bool mavlink_try_send_message(mavlink_channel_t chan, enum ap_message id,
         break; // just here to prevent a warning
 
     case MSG_SWARMIX:
-        //todo: stream our real data
-       // CHECK_PAYLOAD_SIZE(SWARMIX);
+        // CHECK_PAYLOAD_SIZE(SWARMIX);
     	Vector3f accel = ins.get_accel();
-        mavlink_msg_swarmix_net_send(chan,mavlink_system.sysid,current_loc.lat,current_loc.lng,g_gps->altitude_cm*10,(current_loc.alt - home.alt) * 10,g_gps->ground_speed_cm,255,ahrs.roll,ahrs.pitch,ahrs.yaw,255,battery.voltage(),accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
-        //mavlink_msg_swarmix_net_send(chan,id,lat,lon,alt,rel_alt,hdg,gnd_spd,air_spd,roll,pitch,yaw,hdg,vol_bat,xacc,yacc,zacc,rssi_a,rssi_bsnr_a,snr_b);
+        mavlink_msg_swarmix_net_send(chan,mavlink_system.sysid,current_loc.lat,current_loc.lng,g_gps->altitude_cm*10,(current_loc.alt - home.alt) * 10,ahrs.yaw_sensor,g_gps->ground_speed_cm,255,ahrs.roll,ahrs.pitch,ahrs.yaw,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,battery.voltage()*1000,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
         break;
     }
 
@@ -1063,6 +1061,7 @@ GCS_MAVLINK::data_stream_send(void)
 
     if (stream_trigger(STREAM_EXTRA2)) {
         send_message(MSG_VFR_HUD);
+        //send_message(MSG_SWARMIX);
     }
 
     if (gcs_out_of_time) return;
