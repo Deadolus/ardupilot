@@ -19,6 +19,11 @@ static void change_command(uint8_t cmd_index)
     if(temp.id > MAV_CMD_NAV_LAST) {
 
     }else{
+    	// we got a Blank command, so just loiter instead
+    	if(temp.id==CMD_BLANK) {
+    		set_mode(LOITER);
+    		return;
+    	}
         // clear out command queue
         init_commands();
 
