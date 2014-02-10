@@ -17,6 +17,19 @@ static void change_command(uint8_t cmd_index)
 
     // verify it's a nav command
     if(temp.id > MAV_CMD_NAV_LAST) {
+    	//if it's a do_jump command instead
+    	if(temp.id == MAV_CMD_DO_JUMP) {
+            init_commands();
+
+            // copy command to the queue
+            command_cond_queue               = temp;
+            command_cond_index               = cmd_index;
+
+            // do the jump
+    		do_jump(0);
+    	}
+    	else
+    		gcs_send_text_fmt(PSTR("Cannot change to non-Nav cmd %u"), (unsigned)cmd_index);
 
     }else{
     	// we got a Blank command, so just loiter instead
@@ -60,6 +73,13 @@ static void update_commands()
             }else{
                 command_nav_index = tmp_index;
                 command_nav_queue = get_cmd_with_index(command_nav_index);
+                if(command_nav_queue.id == MAV_CMD_DO_JUMP){
+                	command_cond_index=tmp_index;
+                	command_cond_queue=command_nav_queue;
+                	do_jump(0);
+                }
+
+                else
                 execute_nav_command();
             }
         }else{
@@ -169,7 +189,7 @@ static int16_t find_next_nav_index(int16_t search_index)
     Location tmp;
     while(search_index < g.command_total) {
         tmp = get_cmd_with_index(search_index);
-        if(tmp.id <= MAV_CMD_NAV_LAST) {
+        if((tmp.id <= MAV_CMD_NAV_LAST)||(tmp.id==MAV_CMD_DO_JUMP)) {
             return search_index;
         }else{
             search_index++;

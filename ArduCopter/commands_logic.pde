@@ -75,7 +75,7 @@ static void process_now_command()
     switch(command_cond_queue.id) {
 
     case MAV_CMD_DO_JUMP:              // 177
-        do_jump();
+        do_jump(1);
         break;
 
     case MAV_CMD_DO_CHANGE_SPEED:             // 178
@@ -860,25 +860,37 @@ static void do_change_speed()
     wp_nav.set_horizontal_velocity(command_cond_queue.p1 * 100);
 }
 
-static void do_jump()
+/********************************************************************************/
+// do_jump command
+/********************************************************************************/
+
+// set value to zero to reinitialize jump-count, anything else will get ignored
+static void do_jump(int8_t value )
 {
     // Used to track the state of the jump command in Mission scripting
     // -10 is a value that means the register is unused
     // when in use, it contains the current remaining jumps
     static int8_t jump = -10;                                                                   // used to track loops in jump command
 
+    if(value!=0){
+    	jump=value;
+    	return;
+    }
+
     if(jump == -10) {
         // we use a locally stored index for jump
         jump = command_cond_queue.lat;
     }
-
     if(jump > 0) {
         jump--;
+        gcs_send_text_fmt(PSTR("Jump to WP%u, %u jumps left"), (unsigned)command_cond_queue.p1,(unsigned)jump);
         change_command(command_cond_queue.p1);
 
     } else if (jump == 0) {
         // we're done, move along
-        jump = -11;
+        jump = -10;
+        command_nav_queue.id = NO_COMMAND;
+        update_commands();
 
     } else if (jump == -1) {
         // repeat forever

@@ -412,6 +412,8 @@ static bool set_mode(uint8_t mode)
             // check we have a GPS and at least one mission command (note the home position is always command 0)
             if ((GPS_ok() && g.command_total > 1) || ignore_checks) {
                 success = true;
+                //reinitialize jump parameter, in case there's a jump command in our mission
+                do_jump(-10);
                 // roll-pitch, throttle and yaw modes will all be set by the first nav command
                 init_commands();            // clear the command queues. will be reloaded when "run_autopilot" calls "update_commands" function
             }
