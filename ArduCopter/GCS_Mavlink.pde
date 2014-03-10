@@ -2075,17 +2075,30 @@ mission_failed:
     case MAVLINK_MSG_ID_STATUSTEXT:{
     	mavlink_statustext_t statustext;
     	mavlink_msg_statustext_decode(msg, &statustext);
+#if CONFIG_HAL_BOARD == HAL_BOARD_AVR_SITL
+    	mavlink_send_text(MAVLINK_COMM_0, SEVERITY_USER_RESPONSE, statustext.text);
+    	mavlink_send_text(MAVLINK_COMM_1, SEVERITY_USER_RESPONSE, statustext.text);
+        mavlink_send_text(MAVLINK_COMM_2, SEVERITY_USER_RESPONSE, statustext.text);
+        mavlink_send_text(MAVLINK_COMM_3, SEVERITY_USER_RESPONSE, statustext.text);
+#else
         if (chan == MAVLINK_COMM_0) { //comes from usb
         	mavlink_send_text(MAVLINK_COMM_1, SEVERITY_USER_RESPONSE, statustext.text);
         } else { //comes from somewhere else
         	mavlink_send_text(MAVLINK_COMM_0, SEVERITY_USER_RESPONSE, statustext.text);
         }
+#endif
         break;
     }
 
     case MAVLINK_MSG_ID_SWARMIX_NET:{
     	mavlink_swarmix_net_t swarmix;
     	mavlink_msg_swarmix_net_decode(msg,&swarmix);
+#if CONFIG_HAL_BOARD == HAL_BOARD_AVR_SITL
+    	mavlink_msg_swarmix_net_send_t(MAVLINK_COMM_0, &swarmix);
+    	mavlink_msg_swarmix_net_send_t(MAVLINK_COMM_1, &swarmix);
+        mavlink_msg_swarmix_net_send_t(MAVLINK_COMM_2, &swarmix);
+        mavlink_msg_swarmix_net_send_t(MAVLINK_COMM_3, &swarmix);
+#else
         if (chan == MAVLINK_COMM_0) { //comes from usb
         	swarmixRssiA = swarmix.RSSI_A;
         	swarmixRssiB= swarmix.RSSI_B;
@@ -2095,6 +2108,7 @@ mission_failed:
         } else { //comes from somewhere else
         	mavlink_msg_swarmix_net_send_t(MAVLINK_COMM_0, &swarmix);
         }
+#endif
 
         break;
     }
