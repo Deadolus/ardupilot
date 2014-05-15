@@ -704,6 +704,8 @@ static bool mavlink_try_send_message(mavlink_channel_t chan, enum ap_message id,
         // CHECK_PAYLOAD_SIZE(SWARMIX);
     	Vector3f accel = ins.get_accel();
         mavlink_msg_swarmix_net_send(chan,mavlink_system.sysid,current_loc.lat,current_loc.lng,g_gps->altitude_cm*10,(current_loc.alt - home.alt) * 10,ahrs.yaw_sensor,g_gps->ground_speed_cm,255,ahrs.roll,ahrs.pitch,ahrs.yaw,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,battery.voltage()*1000,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
+        //send it also locally (usb)
+        mavlink_msg_swarmix_net_send(MAVLINK_COMM_0,mavlink_system.sysid,current_loc.lat,current_loc.lng,g_gps->altitude_cm*10,(current_loc.alt - home.alt) * 10,ahrs.yaw_sensor,g_gps->ground_speed_cm,255,ahrs.roll,ahrs.pitch,ahrs.yaw,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,battery.voltage()*1000,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
         break;
     }
 
@@ -1149,7 +1151,8 @@ void GCS_MAVLINK::handleMessage(mavlink_message_t* msg)
             streamRates[STREAM_EXTRA2].set(freq);
             break;
         case MAV_DATA_STREAM_EXTRA3:
-            streamRates[STREAM_EXTRA3].set(freq);
+            streamRates[STREAM_SWARMIX].set(freq);
+            //streamRates[STREAM_EXTRA3].set(freq);
             break;
         case MAV_DATA_STREAM_SWARMIX:
             streamRates[STREAM_SWARMIX].set(freq);
