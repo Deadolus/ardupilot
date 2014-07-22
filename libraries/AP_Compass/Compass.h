@@ -14,6 +14,7 @@
 #define AP_COMPASS_TYPE_HMC5843  0x02
 #define AP_COMPASS_TYPE_HMC5883L 0x03
 #define AP_COMPASS_TYPE_PX4      0x04
+#define AP_COMPASS_TYPE_VRBRAIN  0x05
 
 // motor compensation types (for use with motor_comp_enabled)
 #define AP_COMPASS_MOT_COMP_DISABLED    0x00
@@ -33,6 +34,8 @@
 # define MAG_BOARD_ORIENTATION ROTATION_NONE
 #elif CONFIG_HAL_BOARD == HAL_BOARD_LINUX
 # define MAG_BOARD_ORIENTATION ROTATION_YAW_90
+#elif CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
+# define MAG_BOARD_ORIENTATION ROTATION_NONE
 #else
 # error "You must define a default compass orientation for this board"
 #endif
@@ -42,9 +45,30 @@
    than 1 then redundent sensors may be available
  */
 #if CONFIG_HAL_BOARD == HAL_BOARD_PX4
+#define COMPASS_MAX_INSTANCES 3
+#elif CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
 #define COMPASS_MAX_INSTANCES 2
 #else
 #define COMPASS_MAX_INSTANCES 1
+#endif
+
+// default compass device ids for each board type to most common set-up to reduce eeprom usage
+#if CONFIG_HAL_BOARD == HAL_BOARD_PX4
+# define COMPASS_EXPECTED_DEV_ID  73225 // external hmc5883
+# define COMPASS_EXPECTED_DEV_ID2 -1    // internal ldm303d
+# define COMPASS_EXPECTED_DEV_ID3 0
+#elif CONFIG_HAL_BOARD == HAL_BOARD_LINUX
+# define COMPASS_EXPECTED_DEV_ID  0
+# define COMPASS_EXPECTED_DEV_ID2 0
+# define COMPASS_EXPECTED_DEV_ID3 0
+#elif CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
+# define COMPASS_EXPECTED_DEV_ID  0
+# define COMPASS_EXPECTED_DEV_ID2 0
+# define COMPASS_EXPECTED_DEV_ID3 0
+#else
+# define COMPASS_EXPECTED_DEV_ID  0
+# define COMPASS_EXPECTED_DEV_ID2 0
+# define COMPASS_EXPECTED_DEV_ID3 0
 #endif
 
 class Compass
@@ -82,18 +106,22 @@ public:
     ///
     float calculate_heading(const Matrix3f &dcm_matrix) const;
 
-    /// Sets the compass offset x/y/z values.
+    /// Sets and saves the compass offset x/y/z values.
     ///
+    /// @param  i                   compass instance
     /// @param  offsets             Offsets to the raw mag_ values.
     ///
-    void set_offsets(const Vector3f &offsets);
+    void set_and_save_offsets(uint8_t i, const Vector3f &offsets);
 
-    /// Saves the current compass offset x/y/z values.
+    /// Saves the current offset x/y/z values for one or all compasses
+    ///
+    /// @param  i                   compass instance
     ///
     /// This should be invoked periodically to save the offset values maintained by
-    /// ::null_offsets.
+    /// ::learn_offsets.
     ///
-    void save_offsets();
+    void save_offsets(uint8_t i);
+    void save_offsets(void);
 
     // return the number of compass instances
     virtual uint8_t get_count(void) const { return 1; }
@@ -125,17 +153,21 @@ public:
 
     /// Program new offset values.
     ///
+    /// @param  i                   compass instance
     /// @param  x                   Offset to the raw mag_x value.
     /// @param  y                   Offset to the raw mag_y value.
     /// @param  z                   Offset to the raw mag_z value.
     ///
-    void set_offsets(int x, int y, int z) {
-        set_offsets(Vector3f(x, y, z));
+    void set_and_save_offsets(uint8_t i, int x, int y, int z) {
+        set_and_save_offsets(i, Vector3f(x, y, z));
     }
+
+    // learn offsets accessor
+    bool learn_offsets_enabled() const { return _learn; }
 
     /// Perform automatic offset updates
     ///
-    void null_offsets(void);
+    void learn_offsets(void);
 
     /// return true if the compass should be used for yaw calculations
     bool use_for_yaw(void) const {
@@ -211,6 +243,13 @@ public:
         }
     }
 
+    /// Returns True if the compasses have been configured (i.e. offsets saved)
+    ///
+    /// @returns                    True if compass has been configured
+    ///
+    bool configured(uint8_t i);
+    bool configured(void);
+
     static const struct AP_Param::GroupInfo var_info[];
 
     // settable parameters
@@ -228,6 +267,10 @@ protected:
     AP_Int8 _use_for_yaw;                       ///<enable use for yaw calculation
     AP_Int8 _auto_declination;                  ///<enable automatic declination code
     AP_Int8 _external;                          ///<compass is external
+#if COMPASS_MAX_INSTANCES > 1
+    AP_Int8 _primary;                           ///primary instance
+    AP_Int32 _dev_id[COMPASS_MAX_INSTANCES];    // device id detected at init.  saved to eeprom when offsets are saved allowing ram & eeprom values to be compared as consistency check
+#endif
 
     bool _null_init_done;                           ///< first-time-around flag used by offset nulling
 

@@ -80,50 +80,14 @@
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
-// main board differences
-//
-#if CONFIG_HAL_BOARD == HAL_BOARD_APM1
- # define CONFIG_INS_TYPE CONFIG_INS_OILPAN
- # define CONFIG_BARO     AP_BARO_BMP085
- # define CONFIG_COMPASS  AP_COMPASS_HMC5843
-#elif CONFIG_HAL_BOARD == HAL_BOARD_APM2
- # define CONFIG_INS_TYPE CONFIG_INS_MPU6000
- # ifdef APM2_BETA_HARDWARE
- #  define CONFIG_BARO     AP_BARO_BMP085
- # else // APM2 Production Hardware (default)
- #  define CONFIG_BARO          AP_BARO_MS5611
- #  define CONFIG_MS5611_SERIAL AP_BARO_MS5611_SPI
- # endif
- # define CONFIG_COMPASS  AP_COMPASS_HMC5843
-#elif CONFIG_HAL_BOARD == HAL_BOARD_AVR_SITL
- # define CONFIG_INS_TYPE CONFIG_INS_HIL
- # define CONFIG_BARO     AP_BARO_HIL
- # define CONFIG_COMPASS  AP_COMPASS_HIL
-#elif CONFIG_HAL_BOARD == HAL_BOARD_PX4
- # define CONFIG_INS_TYPE CONFIG_INS_PX4
- # define CONFIG_BARO AP_BARO_PX4
- # define CONFIG_COMPASS  AP_COMPASS_PX4
- # define SERIAL0_BAUD 115200
-#elif CONFIG_HAL_BOARD == HAL_BOARD_FLYMAPLE
- # define CONFIG_INS_TYPE CONFIG_INS_FLYMAPLE
- # define CONFIG_BARO AP_BARO_BMP085
- # define CONFIG_COMPASS  AP_COMPASS_HMC5843
- # define SERIAL0_BAUD 115200
-#elif CONFIG_HAL_BOARD == HAL_BOARD_LINUX
- # define BATTERY_VOLT_PIN      -1
- # define BATTERY_CURR_PIN      -1
- # define CONFIG_INS_TYPE CONFIG_INS_L3G4200D
- # define CONFIG_BARO     AP_BARO_BMP085
- # define CONFIG_COMPASS  AP_COMPASS_HMC5843
-#endif
+// sensor types
 
+#define CONFIG_INS_TYPE HAL_INS_DEFAULT
+#define CONFIG_BARO     HAL_BARO_DEFAULT
+#define CONFIG_COMPASS  HAL_COMPASS_DEFAULT
 
-#ifndef CONFIG_BARO
- # error "CONFIG_BARO not set"
-#endif
-
-#ifndef CONFIG_COMPASS
- # error "CONFIG_COMPASS not set"
+#ifdef HAL_SERIAL0_BAUD_DEFAULT
+# define SERIAL0_BAUD HAL_SERIAL0_BAUD_DEFAULT
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -134,24 +98,12 @@
 #endif
 
 #if HIL_MODE != HIL_MODE_DISABLED       // we are in HIL mode
- #undef GPS_PROTOCOL
- #define GPS_PROTOCOL GPS_PROTOCOL_HIL
  #undef CONFIG_BARO
- #define CONFIG_BARO AP_BARO_HIL
+ #define CONFIG_BARO HAL_BARO_HIL
  #undef CONFIG_INS_TYPE
- #define CONFIG_INS_TYPE CONFIG_INS_HIL
+ #define CONFIG_INS_TYPE HAL_INS_HIL
  #undef  CONFIG_COMPASS
- #define CONFIG_COMPASS  AP_COMPASS_HIL
-#endif
-
-//////////////////////////////////////////////////////////////////////////////
-// GPS_PROTOCOL
-//
-// Note that this test must follow the HIL_PROTOCOL block as the HIL
-// setup may override the GPS configuration.
-//
-#ifndef GPS_PROTOCOL
- # define GPS_PROTOCOL GPS_PROTOCOL_AUTO
+ #define CONFIG_COMPASS HAL_COMPASS_HIL
 #endif
 
 #ifndef MAV_SYSTEM_ID
@@ -409,7 +361,7 @@
  # define HEAD_MAX                               45
 #endif
 #ifndef PITCH_MAX
- # define PITCH_MAX                              15
+ # define PITCH_MAX                              20
 #endif
 #ifndef PITCH_MIN
  # define PITCH_MIN                              -25
