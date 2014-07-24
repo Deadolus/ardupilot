@@ -4,7 +4,7 @@
  */
 #ifndef SWARMIX_H
 #define SWARMIX_H
-
+#define MAVLINK_USE_CONVENIENCE_FUNCTIONS
 #ifdef __cplusplus
 extern "C" {
 #endif

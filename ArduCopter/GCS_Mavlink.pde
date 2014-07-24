@@ -606,9 +606,9 @@ bool GCS_MAVLINK::try_send_message(enum ap_message id)
     case MSG_SWARMIX:
         // CHECK_PAYLOAD_SIZE(SWARMIX);
     	Vector3f accel = ins.get_accel();
-        mavlink_msg_swarmix_net_send(chan,mavlink_system.sysid,current_loc.lat,current_loc.lng,g_gps->altitude_cm*10,(current_loc.alt - home.alt) * 10,ahrs.yaw_sensor,g_gps->ground_speed_cm,255,ahrs.roll,ahrs.pitch,ahrs.yaw,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,battery.voltage()*1000,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
+        mavlink_msg_swarmix_net_send(chan,mavlink_system.sysid,current_loc.lat,current_loc.lng,ahrs.get_gps().location().alt*10,(current_loc.alt - ahrs.get_home().alt) * 10,ahrs.yaw_sensor,ahrs.groundspeed()*100,255,ahrs.roll,ahrs.pitch,ahrs.yaw,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,battery.voltage()*1000,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
         //send it also locally (usb)
-        mavlink_msg_swarmix_net_send(MAVLINK_COMM_0,mavlink_system.sysid,current_loc.lat,current_loc.lng,g_gps->altitude_cm*10,(current_loc.alt - home.alt) * 10,ahrs.yaw_sensor,g_gps->ground_speed_cm,255,ahrs.roll,ahrs.pitch,ahrs.yaw,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,battery.voltage()*1000,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
+        mavlink_msg_swarmix_net_send(MAVLINK_COMM_0,mavlink_system.sysid,current_loc.lat,current_loc.lng,ahrs.get_gps().location().alt*10,(current_loc.alt - ahrs.get_home().alt) * 10,ahrs.yaw_sensor,ahrs.groundspeed()*100,255,ahrs.roll,ahrs.pitch,ahrs.yaw,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,battery.voltage()*1000,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
         break;
     }
 
@@ -972,21 +972,6 @@ void GCS_MAVLINK::handleMessage(mavlink_message_t* msg)
 
             break;
         }
-        case MAV_DATA_STREAM_POSITION:
-            streamRates[STREAM_POSITION].set(freq);
-            break;
-        case MAV_DATA_STREAM_EXTRA1:
-            streamRates[STREAM_EXTRA1].set(freq);
-            break;
-        case MAV_DATA_STREAM_EXTRA2:
-            streamRates[STREAM_EXTRA2].set(freq);
-            break;
-        case MAV_DATA_STREAM_EXTRA3:
-            streamRates[STREAM_SWARMIX].set(freq);
-            //streamRates[STREAM_EXTRA3].set(freq);
-            break;
-        case MAV_DATA_STREAM_SWARMIX:
-            streamRates[STREAM_SWARMIX].set(freq);
 
         v[0] = packet.chan1_raw;
         v[1] = packet.chan2_raw;
@@ -1084,26 +1069,6 @@ void GCS_MAVLINK::handleMessage(mavlink_message_t* msg)
             if (set_mode(AUTO)) {
                 result = MAV_RESULT_ACCEPTED;
             }
-            break;
-        case MAV_CMD_CONDITION_YAW:
-            // get final angle, 1 = Relative, 0 = Absolute
-            if( packet.param4 == 0 ) {
-                // absolute angle
-            	yaw_look_at_heading = wrap_360_cd(packet.param1 * 100);
-            }else{
-                // relative angle
-                yaw_look_at_heading = wrap_360_cd(control_yaw +packet.param1 * 100);
-            }
-            // get turn speed
-              if( packet.param2 == 0 ) {
-                  // default to regular auto slew rate
-                  yaw_look_at_heading_slew = AUTO_YAW_SLEW_RATE;
-              }else{
-                  int32_t turn_rate = (wrap_180_cd(yaw_look_at_heading - control_yaw ) / 100) / packet.param2;
-                  yaw_look_at_heading_slew = constrain_int32(turn_rate, 1, 360);    // deg / sec
-              }
-        	set_yaw_mode(YAW_LOOK_AT_HEADING);
-        	result = MAV_RESULT_ACCEPTED;
             break;
 
         case MAV_CMD_PREFLIGHT_CALIBRATION:
@@ -1417,9 +1382,9 @@ void GCS_MAVLINK::handleMessage(mavlink_message_t* msg)
         mavlink_send_text(MAVLINK_COMM_3, SEVERITY_USER_RESPONSE, statustext.text);
 #else
         if (chan == MAVLINK_COMM_0) { //comes from usb
-        	mavlink_send_text(MAVLINK_COMM_1, SEVERITY_USER_RESPONSE, statustext.text);
+            mavlink_msg_statustext_send(MAVLINK_COMM_1, SEVERITY_USER_RESPONSE, statustext.text);
         } else { //comes from somewhere else
-        	mavlink_send_text(MAVLINK_COMM_0, SEVERITY_USER_RESPONSE, statustext.text);
+            mavlink_msg_statustext_send(MAVLINK_COMM_0, SEVERITY_USER_RESPONSE, statustext.text);
         }
 #endif
         break;
