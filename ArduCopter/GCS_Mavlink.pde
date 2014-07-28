@@ -703,9 +703,9 @@ static bool mavlink_try_send_message(mavlink_channel_t chan, enum ap_message id,
     case MSG_SWARMIX:
         // CHECK_PAYLOAD_SIZE(SWARMIX);
     	Vector3f accel = ins.get_accel();
-        mavlink_msg_swarmix_net_send(chan,mavlink_system.sysid,current_loc.lat,current_loc.lng,g_gps->altitude_cm*10,(current_loc.alt - home.alt) * 10,ahrs.yaw_sensor,g_gps->ground_speed_cm,255,ahrs.roll,ahrs.pitch,ahrs.yaw,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,battery.voltage()*1000,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
+        mavlink_msg_swarmix_net_send(chan,mavlink_system.sysid,current_loc.lat,current_loc.lng,g_gps->altitude_cm*10,(current_loc.alt - home.alt) * 10,g_gps->ground_course_cd,g_gps->ground_speed_cm,255,ahrs.roll,ahrs.pitch,ahrs.yaw,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,battery.voltage()*1000,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
         //send it also locally (usb)
-        mavlink_msg_swarmix_net_send(MAVLINK_COMM_0,mavlink_system.sysid,current_loc.lat,current_loc.lng,g_gps->altitude_cm*10,(current_loc.alt - home.alt) * 10,ahrs.yaw_sensor,g_gps->ground_speed_cm,255,ahrs.roll,ahrs.pitch,ahrs.yaw,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,battery.voltage()*1000,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
+        mavlink_msg_swarmix_net_send(MAVLINK_COMM_0,mavlink_system.sysid,current_loc.lat,current_loc.lng,g_gps->altitude_cm*10,(current_loc.alt - home.alt) * 10,g_gps->ground_course_cd,g_gps->ground_speed_cm,255,ahrs.roll,ahrs.pitch,ahrs.yaw,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,battery.voltage()*1000,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
         break;
     }
 
