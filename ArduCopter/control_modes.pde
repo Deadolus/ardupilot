@@ -384,6 +384,14 @@ static void do_aux_switch_function(int8_t ch_function, uint8_t ch_flag)
                 break;
             }
             break;
+
+            case AUX_SWITCH_BEEP:
+                if(ch_flag == AUX_SWITCH_HIGH) {
+                case AUX_SWITCH_LOW:
+                mavlink_send_text(MAVLINK_COMM_0, SEVERITY_USER_RESPONSE, "AUX_BEEP");
+                mavlink_send_text(MAVLINK_COMM_1, SEVERITY_USER_RESPONSE, "AUX_BEEP");
+                }
+                break;
     }
 }
 
