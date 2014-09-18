@@ -73,14 +73,15 @@ static void run_cli(AP_HAL::UARTDriver *port)
 
 static void init_ardupilot()
 {
-    if (!hal.gpio->usb_connected()) {
+    /* Swarmix: We always have the Xbee in the serial line! */
+  //  if (!hal.gpio->usb_connected()) {
         // USB is not connected, this means UART0 may be a Xbee, with
         // its darned bricking problem. We can't write to it for at
         // least one second after powering up. Simplest solution for
         // now is to delay for 1 second. Something more elegant may be
         // added later
         delay(1000);
-    }
+    //}
 
     // Console serial port
     //
