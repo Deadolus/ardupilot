@@ -2087,7 +2087,7 @@ mission_failed:
         if (chan == MAVLINK_COMM_0) { //comes from usb
         	mavlink_send_text(MAVLINK_COMM_1, SEVERITY_USER_RESPONSE, statustext.text);
         	//if we receive a AUX_BEEP message, trigger camera (release box)
-        	if(statustext.text == "AUX_BEEP")
+        	if(strstr("AUX_BEEP",statustext.text)!=NULL)
         	{
         	    do_take_picture();
         	    break;
