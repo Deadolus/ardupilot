@@ -132,22 +132,14 @@ static void init_ardupilot()
 
     BoardConfig.init();
 
-    // FIX: this needs to be the inverse motors mask
-    ServoRelayEvents.set_channel_mask(0xFFF0);
-
-    relay.init();
-
-    bool enable_external_leds = true;
-
     // init EPM cargo gripper
 #if EPM_ENABLED == ENABLED
     epm.init();
-    enable_external_leds = !epm.enabled();
 #endif
 
     // initialise notify system
     // disable external leds if epm is enabled because of pin conflict on the APM
-    notify.init(enable_external_leds);
+    notify.init(true);
 
     // initialise battery monitor
     battery.init();
@@ -174,9 +166,16 @@ static void init_ardupilot()
     // APM2. We actually do have one on APM2 but it isn't necessary as
     // a MUX is used
     gcs[1].setup_uart(hal.uartC, map_baudrate(g.serial1_baud), 128, 128);
+
 //#endif
+
 #if MAVLINK_COMM_NUM_BUFFERS > 2
-    gcs[2].setup_uart(hal.uartD, map_baudrate(g.serial2_baud), 128, 128);
+    if (g.serial2_protocol == SERIAL2_FRSKY_DPORT || 
+        g.serial2_protocol == SERIAL2_FRSKY_SPORT) {
+        frsky_telemetry.init(hal.uartD, g.serial2_protocol);
+    } else {
+        gcs[2].setup_uart(hal.uartD, map_baudrate(g.serial2_baud), 128, 128);
+    }
 #endif
 
     // identify ourselves correctly with the ground station
@@ -186,10 +185,10 @@ static void init_ardupilot()
 #if LOGGING_ENABLED == ENABLED
     DataFlash.Init(log_structure, sizeof(log_structure)/sizeof(log_structure[0]));
     if (!DataFlash.CardInserted()) {
-        gcs_send_text_P(SEVERITY_LOW, PSTR("No dataflash inserted"));
+        gcs_send_text_P(SEVERITY_HIGH, PSTR("No dataflash inserted"));
         g.log_bitmask.set(0);
     } else if (DataFlash.NeedErase()) {
-        gcs_send_text_P(SEVERITY_LOW, PSTR("ERASING LOGS"));
+        gcs_send_text_P(SEVERITY_HIGH, PSTR("ERASING LOGS"));
         do_erase_logs();
         gcs[0].reset_cli_timeout();
     }
@@ -197,6 +196,11 @@ static void init_ardupilot()
 
     init_rc_in();               // sets up rc channels from radio
     init_rc_out();              // sets up motors and output to escs
+
+    // initialise which outputs Servo and Relay events can use
+    ServoRelayEvents.set_channel_mask(~motors.get_motor_mask());
+
+    relay.init();
 
     /*
      *  setup the 'main loop is dead' check. Note that this relies on
@@ -220,9 +224,7 @@ static void init_ardupilot()
     pos_control.set_dt(MAIN_LOOP_SECONDS);
 
     // init the optical flow sensor
-    if(g.optflow_enabled) {
-        init_optflow();
-    }
+    init_optflow();
 
     // initialise inertial nav
     inertial_nav.init();
@@ -243,8 +245,8 @@ static void init_ardupilot()
 #endif // CLI_ENABLED
 
 #if HIL_MODE != HIL_MODE_DISABLED
-    while (!barometer.healthy) {
-        // the barometer becomes healthy when we get the first
+    while (barometer.get_last_update() == 0) {
+        // the barometer begins updating when we get the first
         // HIL_STATE message
         gcs_send_text_P(SEVERITY_LOW, PSTR("Waiting for first HIL_STATE message"));
         delay(1000);
@@ -283,12 +285,16 @@ static void init_ardupilot()
     // mid-flight, so set the serial ports non-blocking once we are
     // ready to fly
     hal.uartA->set_blocking_writes(false);
+    hal.uartB->set_blocking_writes(false);
     hal.uartC->set_blocking_writes(false);
     if (hal.uartD != NULL) {
         hal.uartD->set_blocking_writes(false);
     }
 
     cliSerial->print_P(PSTR("\nReady to FLY "));
+
+    // flag that initialisation has completed
+    ap.initialised = true;
 }
 
 
@@ -316,6 +322,7 @@ static void startup_ground(bool force_gyro_cal)
 
     // set landed flag
     set_land_complete(true);
+    set_land_complete_maybe(true);
 }
 
 // returns true if the GPS is ok and home position is set
@@ -342,7 +349,7 @@ static void update_auto_armed()
             return;
         }
         // if in stabilize or acro flight mode and throttle is zero, auto-armed should become false
-        if(manual_flight_mode(control_mode) && g.rc_3.control_in == 0 && !failsafe.radio) {
+        if(manual_flight_mode(control_mode) && ap.throttle_zero && !failsafe.radio) {
             set_auto_armed(false);
         }
     }else{
@@ -350,12 +357,12 @@ static void update_auto_armed()
         
 #if FRAME_CONFIG == HELI_FRAME
         // for tradheli if motors are armed and throttle is above zero and the motor is started, auto_armed should be true
-        if(motors.armed() && g.rc_3.control_in != 0 && motors.motor_runup_complete()) {
+        if(motors.armed() && !ap.throttle_zero && motors.motor_runup_complete()) {
             set_auto_armed(true);
         }
 #else
         // if motors are armed and throttle is above zero auto_armed should be true
-        if(motors.armed() && g.rc_3.control_in != 0) {
+        if(motors.armed() && !ap.throttle_zero) {
             set_auto_armed(true);
         }
 #endif // HELI_FRAME
@@ -385,3 +392,34 @@ static void check_usb_mux(void)
 #endif
 }
 
+/*
+  send FrSky telemetry. Should be called at 5Hz by scheduler
+ */
+static void telemetry_send(void)
+{
+#if FRSKY_TELEM_ENABLED == ENABLED
+    frsky_telemetry.send_frames((uint8_t)control_mode, 
+                                (AP_Frsky_Telem::FrSkyProtocol)g.serial2_protocol.get());
+#endif
+}
+
+/*
+  should we log a message type now?
+ */
+static bool should_log(uint32_t mask)
+{
+#if LOGGING_ENABLED == ENABLED
+    if (!(mask & g.log_bitmask) || in_mavlink_delay) {
+        return false;
+    }
+    bool ret = motors.armed() || (g.log_bitmask & MASK_LOG_WHEN_DISARMED) != 0;
+    if (ret && !DataFlash.logging_started() && !in_log_download) {
+        // we have to set in_mavlink_delay to prevent logging while
+        // writing headers
+        start_logging();
+    }
+    return ret;
+#else
+    return false;
+#endif
+}

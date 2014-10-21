@@ -80,6 +80,14 @@ void AP_MotorsTri::output_min()
     hal.rcout->write(pgm_read_byte(&_motor_to_channel_map[AP_MOTORS_CH_TRI_YAW]), _rc_yaw.radio_trim);
 }
 
+// get_motor_mask - returns a bitmask of which outputs are being used for motors or servos (1 means being used)
+//  this can be used to ensure other pwm outputs (i.e. for servos) do not conflict
+uint16_t AP_MotorsTri::get_motor_mask()
+{
+    // tri copter uses channels 1,2,4 and 7
+    return (1U << 0 | 1U << 1 | 1U << 3 | 1U << AP_MOTORS_CH_TRI_YAW);
+}
+
 // output_armed - sends commands to the motors
 void AP_MotorsTri::output_armed()
 {
@@ -91,7 +99,14 @@ void AP_MotorsTri::output_armed()
     limit.throttle_lower = false;
 
     // Throttle is 0 to 1000 only
-    _rc_throttle.servo_out = constrain_int16(_rc_throttle.servo_out, 0, _max_throttle);
+    if (_rc_throttle.servo_out <= 0) {
+        _rc_throttle.servo_out = 0;
+        limit.throttle_lower = true;
+    }
+    if (_rc_throttle.servo_out >= _max_throttle) {
+        _rc_throttle.servo_out = _max_throttle;
+        limit.throttle_upper = true;
+    }
 
     // capture desired roll, pitch, yaw and throttle from receiver
     _rc_roll.calc_pwm();
@@ -112,15 +127,12 @@ void AP_MotorsTri::output_armed()
         motor_out[AP_MOTORS_MOT_2] = _rc_throttle.radio_min + _spin_when_armed_ramped;
         motor_out[AP_MOTORS_MOT_4] = _rc_throttle.radio_min + _spin_when_armed_ramped;
 
-        // Every thing is limited
-        limit.throttle_lower = true;
-
     }else{
         int16_t roll_out            = (float)_rc_roll.pwm_out * 0.866f;
         int16_t pitch_out           = _rc_pitch.pwm_out / 2;
 
         // check if throttle is below limit
-        if (_rc_throttle.radio_out <= out_min) {
+        if (_rc_throttle.servo_out <= _min_throttle) {
             limit.throttle_lower = true;
         }
         //left front

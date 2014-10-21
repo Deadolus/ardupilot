@@ -22,10 +22,25 @@ static void init_barometer(bool full_calibration)
 static int32_t read_barometer(void)
 {
     barometer.read();
-    if (g.log_bitmask & MASK_LOG_IMU) {
+    if (should_log(MASK_LOG_IMU)) {
         Log_Write_Baro();
     }
-    return barometer.get_altitude() * 100.0f;
+    int32_t balt = barometer.get_altitude() * 100.0f;
+
+    // run glitch protection and update AP_Notify if home has been initialised
+    baro_glitch.check_alt();
+    bool report_baro_glitch = (baro_glitch.glitching() && !ap.usb_connected && hal.util->safety_switch_state() != AP_HAL::Util::SAFETY_DISARMED);
+    if (AP_Notify::flags.baro_glitching != report_baro_glitch) {
+        if (baro_glitch.glitching()) {
+            Log_Write_Error(ERROR_SUBSYSTEM_BARO, ERROR_CODE_BARO_GLITCH);
+        } else {
+            Log_Write_Error(ERROR_SUBSYSTEM_BARO, ERROR_CODE_ERROR_RESOLVED);
+        }
+        AP_Notify::flags.baro_glitching = report_baro_glitch;
+    }
+
+    // return altitude
+    return balt;
 }
 
 // return sonar altitude in centimeters
@@ -78,14 +93,43 @@ static void init_compass()
 static void init_optflow()
 {
 #if OPTFLOW == ENABLED
+    // exit immediately if not enabled
+    if (!optflow.enabled()) {
+        return;
+    }
+
+    // initialise sensor and display error on failure
     optflow.init();
     if (!optflow.healthy()) {
-        g.optflow_enabled = false;
         cliSerial->print_P(PSTR("Failed to Init OptFlow\n"));
         Log_Write_Error(ERROR_SUBSYSTEM_OPTFLOW,ERROR_CODE_FAILED_TO_INITIALISE);
     }
 #endif      // OPTFLOW == ENABLED
 }
+
+// called at 100hz but data from sensor only arrives at 20 Hz
+#if OPTFLOW == ENABLED
+static void update_optflow(void)
+{
+    static uint32_t last_of_update = 0;
+
+    // exit immediately if not enabled
+    if (!optflow.enabled()) {
+        return;
+    }
+
+    // read from sensor
+    optflow.update();
+
+    // write to log if new data has arrived
+    if (optflow.last_update() != last_of_update) {
+        last_of_update = optflow.last_update();
+        if (should_log(MASK_LOG_OPTFLOW)) {
+            Log_Write_Optflow();
+        }
+    }
+}
+#endif  // OPTFLOW == ENABLED
 
 // read_battery - check battery voltage and current and invoke failsafe if necessary
 // called at 10hz
@@ -103,6 +147,11 @@ static void read_battery(void)
     if (!ap.usb_connected && !failsafe.battery && battery.exhausted(g.fs_batt_voltage, g.fs_batt_mah)) {
         failsafe_battery_event();
     }
+
+    // log battery info to the dataflash
+    if (should_log(MASK_LOG_CURRENT)) {
+        Log_Write_Current();
+    }
 }
 
 // read the receiver RSSI as an 8 bit number for MAVLink
@@ -118,3 +167,11 @@ void read_receiver_rssi(void)
         receiver_rssi = constrain_int16(ret, 0, 255);
     }
 }
+
+#if EPM_ENABLED == ENABLED
+// epm update - moves epm pwm output back to neutral after grab or release is completed
+void epm_update()
+{
+    epm.update();
+}
+#endif

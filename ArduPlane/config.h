@@ -77,6 +77,9 @@
  #ifndef CAMERA
  # define CAMERA DISABLED
  #endif
+ #ifndef FRSKY_TELEM_ENABLED
+ # define FRSKY_TELEM_ENABLED DISABLED
+ #endif
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -123,6 +126,17 @@
  # define SERIAL2_BAUD                    57600
 #endif
 
+//////////////////////////////////////////////////////////////////////////////
+// FrSky telemetry support
+//
+
+#ifndef FRSKY_TELEM_ENABLED
+#if CONFIG_HAL_BOARD == HAL_BOARD_APM1 || CONFIG_HAL_BOARD == HAL_BOARD_APM2
+ # define FRSKY_TELEM_ENABLED DISABLED
+#else
+ # define FRSKY_TELEM_ENABLED ENABLED
+#endif
+#endif
 
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
@@ -414,7 +428,7 @@
 // Navigation defaults
 //
 #ifndef WP_RADIUS_DEFAULT
- # define WP_RADIUS_DEFAULT              30
+ # define WP_RADIUS_DEFAULT              90
 #endif
 
 #ifndef LOITER_RADIUS_DEFAULT
@@ -473,8 +487,18 @@
 
 // OBC Failsafe enable
 #ifndef OBC_FAILSAFE
+#if HAL_CPU_CLASS >= HAL_CPU_CLASS_75
+ # define OBC_FAILSAFE ENABLED
+#else
  # define OBC_FAILSAFE DISABLED
 #endif
+#endif
+
+#if OBC_FAILSAFE == ENABLED && HAL_CPU_CLASS < HAL_CPU_CLASS_75
+#define CLI_ENABLED DISABLED
+#endif
+
+
 
 #ifndef SERIAL_BUFSIZE
  # define SERIAL_BUFSIZE 512

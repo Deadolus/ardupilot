@@ -143,7 +143,7 @@ AP_AHRS_DCM::check_matrix(void)
 {
     if (_dcm_matrix.is_nan()) {
         //Serial.printf("ERROR: DCM matrix NAN\n");
-        reset(true);
+        AP_AHRS_DCM::reset(true);
         return;
     }
     // some DCM matrix values can lead to an out of range error in
@@ -161,7 +161,7 @@ AP_AHRS_DCM::check_matrix(void)
             // in real trouble. All we can do is reset
             //Serial.printf("ERROR: DCM matrix error. _dcm_matrix.c.x=%f\n",
             //	   _dcm_matrix.c.x);
-            reset(true);
+            AP_AHRS_DCM::reset(true);
         }
     }
 }
@@ -242,7 +242,7 @@ AP_AHRS_DCM::normalize(void)
         // Our solution is blowing up and we will force back
         // to last euler angles
         _last_failure_ms = hal.scheduler->millis();
-        reset(true);
+        AP_AHRS_DCM::reset(true);
     }
 }
 
@@ -362,7 +362,7 @@ AP_AHRS_DCM::drift_correction_yaw(void)
     float yaw_error;
     float yaw_deltat;
 
-    if (use_compass()) {
+    if (AP_AHRS_DCM::use_compass()) {
         /*
           we are using compass for yaw
          */
@@ -684,7 +684,7 @@ AP_AHRS_DCM::drift_correction(float deltat)
     // reduce the impact of the gps/accelerometers on yaw when we are
     // flat, but still allow for yaw correction using the
     // accelerometers at high roll angles as long as we have a GPS
-    if (use_compass()) {
+    if (AP_AHRS_DCM::use_compass()) {
         if (have_gps() && gps_gain == 1.0f) {
             error[besti].z *= sinf(fabsf(roll));
         } else {
@@ -837,12 +837,7 @@ AP_AHRS_DCM::euler_angles(void)
     _body_dcm_matrix.rotateXYinv(_trim);
     _body_dcm_matrix.to_euler(&roll, &pitch, &yaw);
 
-    roll_sensor     = degrees(roll)  * 100;
-    pitch_sensor    = degrees(pitch) * 100;
-    yaw_sensor      = degrees(yaw)   * 100;
-
-    if (yaw_sensor < 0)
-        yaw_sensor += 36000;
+    update_cd_values();
 }
 
 /* reporting of DCM state for MAVLink */
@@ -877,7 +872,7 @@ float AP_AHRS_DCM::get_error_yaw(void)
 
 // return our current position estimate using
 // dead-reckoning or GPS
-bool AP_AHRS_DCM::get_position(struct Location &loc)
+bool AP_AHRS_DCM::get_position(struct Location &loc) const
 {
     loc.lat = _last_lat;
     loc.lng = _last_lng;
@@ -886,7 +881,7 @@ bool AP_AHRS_DCM::get_position(struct Location &loc)
     loc.flags.terrain_alt = 0;
     location_offset(loc, _position_offset_north, _position_offset_east);
     if (_flags.fly_forward && _have_position) {
-        location_update(loc, degrees(yaw), _gps.ground_speed() * _gps.get_lag());
+        location_update(loc, _gps.ground_course_cd() * 0.01f, _gps.ground_speed() * _gps.get_lag());
     }
     return _have_position;
 }

@@ -56,6 +56,7 @@
 #define AUX_SWITCH_ATTCON_FEEDFWD   25      // enable/disable the roll and pitch rate feed forward
 #define AUX_SWITCH_ATTCON_ACCEL_LIM 26      // enable/disable the roll, pitch and yaw accel limiting
 #define AUX_SWITCH_RETRACT_MOUNT    27      // Retract Mount
+#define AUX_SWITCH_RELAY            28      // Relay pin on/off (only supports first relay)
 #define AUX_SWITCH_BEEP             51
 
 // values used by the ap.ch7_opt and ap.ch8_opt flags
@@ -127,14 +128,14 @@
 #define CH6_WP_SPEED                    10  // maximum speed to next way point (0 to 10m/s)
 #define CH6_ACRO_RP_KP                  25  // acro controller's P term.  converts pilot input to a desired roll, pitch or yaw rate
 #define CH6_ACRO_YAW_KP                 40  // acro controller's P term.  converts pilot input to a desired roll, pitch or yaw rate
-#define CH6_RELAY                       9   // switch relay on if ch6 high, off if low
+#define CH6_RELAY                       9   // deprecated -- remove
 #define CH6_HELI_EXTERNAL_GYRO          13  // TradHeli specific external tail gyro gain
 #define CH6_OPTFLOW_KP                  17  // optical flow loiter controller's P term (position error to tilt angle)
 #define CH6_OPTFLOW_KI                  18  // optical flow loiter controller's I term (position error to tilt angle)
 #define CH6_OPTFLOW_KD                  19  // optical flow loiter controller's D term (position error to tilt angle)
 #define CH6_AHRS_YAW_KP                 30  // ahrs's compass effect on yaw angle (0 = very low, 1 = very high)
 #define CH6_AHRS_KP                     31  // accelerometer effect on roll/pitch angle (0=low)
-#define CH6_INAV_TC                     32  // inertial navigation baro/accel and gps/accel time constant (1.5 = strong baro/gps correction on accel estimatehas very strong does not correct accel estimate, 7 = very weak correction)
+#define CH6_INAV_TC                     32  // deprecated -- remove
 #define CH6_DECLINATION                 38  // compass declination in radians
 #define CH6_CIRCLE_RATE                 39  // circle turn rate in degrees (hard coded to about 45 degrees in either direction)
 #define CH6_SONAR_GAIN                  41  // sonar gain
@@ -170,16 +171,6 @@
 #define WP_YAW_BEHAVIOR_LOOK_AT_NEXT_WP_EXCEPT_RTL    2   // auto pilot will face next waypoint except when doing RTL at which time it will stay in it's last
 #define WP_YAW_BEHAVIOR_LOOK_AHEAD                    3   // auto pilot will look ahead during missions and rtl (primarily meant for traditional helicotpers)
 
-
-// Waypoint options
-#define WP_OPTION_ALT_CHANGE                    2
-#define WP_OPTION_YAW                           4
-#define WP_OPTION_ALT_REQUIRED                  8
-#define WP_OPTION_RELATIVE                      16
-//#define WP_OPTION_					32
-//#define WP_OPTION_					64
-#define WP_OPTION_NEXT_CMD                      128
-
 // Auto modes
 enum AutoMode {
     Auto_TakeOff,
@@ -189,11 +180,13 @@ enum AutoMode {
     Auto_CircleMoveToEdge,
     Auto_Circle,
     Auto_Spline,
-    Auto_NavGuided
+    Auto_NavGuided,
+    Auto_Loiter
 };
 
 // Guided modes
 enum GuidedMode {
+    Guided_TakeOff,
     Guided_WP,
     Guided_Velocity
 };
@@ -211,6 +204,8 @@ enum RTLState {
 enum FlipState {
     Flip_Start,
     Flip_Roll,
+    Flip_Pitch_A,
+    Flip_Pitch_B,
     Flip_Recover,
     Flip_Abandon
 };
@@ -262,6 +257,8 @@ enum FlipState {
 #define MASK_LOG_COMPASS                (1<<13)
 #define MASK_LOG_INAV                   (1<<14) // deprecated
 #define MASK_LOG_CAMERA                 (1<<15)
+#define MASK_LOG_WHEN_DISARMED          (1UL<<16)
+#define MASK_LOG_ANY                    0xFFFF
 
 // DATA - event logging
 #define DATA_MAVLINK_FLOAT              1
@@ -274,6 +271,7 @@ enum FlipState {
 #define DATA_DISARMED                   11
 #define DATA_AUTO_ARMED                 15
 #define DATA_TAKEOFF                    16
+#define DATA_LAND_COMPLETE_MAYBE        17
 #define DATA_LAND_COMPLETE              18
 #define DATA_NOT_LANDED                 28
 #define DATA_LOST_GPS                   19
@@ -299,34 +297,15 @@ enum FlipState {
 #define DATA_ACRO_TRAINER_DISABLED      43
 #define DATA_ACRO_TRAINER_LEVELING      44
 #define DATA_ACRO_TRAINER_LIMITED       45
-#define DATA_EPM_ON                     46
-#define DATA_EPM_OFF                    47
-#define DATA_EPM_NEUTRAL                48
+#define DATA_EPM_GRAB                   46
+#define DATA_EPM_RELEASE                47
+#define DATA_EPM_NEUTRAL                48  // deprecated
 #define DATA_PARACHUTE_DISABLED         49
 #define DATA_PARACHUTE_ENABLED          50
 #define DATA_PARACHUTE_RELEASED         51
 
 // Centi-degrees to radians
 #define DEGX100 5729.57795f
-
-// fence points are stored at the end of the EEPROM
-#define MAX_FENCEPOINTS 6
-#define FENCE_WP_SIZE sizeof(Vector2l)
-#define FENCE_START_BYTE (HAL_STORAGE_SIZE_AVAILABLE-(MAX_FENCEPOINTS*FENCE_WP_SIZE))
-
-// rally points shoehorned between fence points and waypoints
-#define MAX_RALLYPOINTS 6
-#define RALLY_START_BYTE (FENCE_START_BYTE-(MAX_RALLYPOINTS*AC_RALLY_WP_SIZE))
-#define RALLY_LIMIT_KM_DEFAULT 2.0  // we'll set a per-vehicle default for this
-
-// parameters get the first 1536 bytes of EEPROM
-// mission commands are stored between these params and the rally points, or fence points if rally disabled
-#define MISSION_START_BYTE   0x600
-#if AC_RALLY == ENABLED
-  #define MISSION_END_BYTE   (RALLY_START_BYTE-1)
-#else
-  #define MISSION_END_BYTE   (FENCE_START_BYTE-1)
-#endif
 
 // mark a function as not to be inlined
 #define NOINLINE __attribute__((noinline))
@@ -347,8 +326,9 @@ enum FlipState {
 #define ERROR_SUBSYSTEM_FLIP                13
 #define ERROR_SUBSYSTEM_AUTOTUNE            14
 #define ERROR_SUBSYSTEM_PARACHUTE           15
-#define ERROR_SUBSYSTEM_EKF_CHECK           16
-#define ERROR_SUBSYSTEM_FAILSAFE_EKF        17
+#define ERROR_SUBSYSTEM_EKFINAV_CHECK       16
+#define ERROR_SUBSYSTEM_FAILSAFE_EKFINAV    17
+#define ERROR_SUBSYSTEM_BARO                18
 // general error codes
 #define ERROR_CODE_ERROR_RESOLVED           0
 #define ERROR_CODE_FAILED_TO_INITIALISE     1
@@ -373,8 +353,10 @@ enum FlipState {
 // parachute failed to deploy because of low altitude
 #define ERROR_CODE_PARACHUTE_TOO_LOW        2
 // EKF check definitions
-#define ERROR_CODE_EKF_CHECK_BAD_COMPASS    2
-#define ERROR_CODE_EKF_CHECK_BAD_COMPASS_CLEARED    0
+#define ERROR_CODE_EKFINAV_CHECK_BAD_VARIANCE       2
+#define ERROR_CODE_EKFINAV_CHECK_VARIANCE_CLEARED   0
+// Baro specific error codes
+#define ERROR_CODE_BARO_GLITCH              2
 
 // Arming Check Enable/Disable bits
 #define ARMING_CHECK_NONE                   0x00
@@ -403,5 +385,12 @@ enum FlipState {
 #define FS_GPS_LAND                         1       // switch to LAND mode on GPS Failsafe
 #define FS_GPS_ALTHOLD                      2       // switch to ALTHOLD mode on GPS failsafe
 #define FS_GPS_LAND_EVEN_STABILIZE          3       // switch to LAND mode on GPS failsafe even if in a manual flight mode like Stabilize
+
+
+enum Serial2Protocol {
+    SERIAL2_MAVLINK     = 1,
+    SERIAL2_FRSKY_DPORT = 2,
+    SERIAL2_FRSKY_SPORT = 3 // not supported yet
+};
 
 #endif // _DEFINES_H

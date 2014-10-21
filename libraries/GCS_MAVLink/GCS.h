@@ -12,6 +12,7 @@
 #include <GCS_MAVLink.h>
 #include <DataFlash.h>
 #include <AP_Mission.h>
+#include "../AP_BattMonitor/AP_BattMonitor.h"
 #include <stdint.h>
 
 //  GCS Message ID's
@@ -47,6 +48,7 @@ enum ap_message {
     MSG_WIND,
     MSG_RANGEFINDER,
     MSG_TERRAIN,
+    MSG_BATTERY2,
     MSG_SWARMIX,
     MSG_RETRY_DEFERRED // this must be last
 };
@@ -197,10 +199,18 @@ public:
     void send_scaled_pressure(AP_Baro &barometer);
     void send_sensor_offsets(const AP_InertialSensor &ins, const Compass &compass, AP_Baro &barometer);
     void send_ahrs(AP_AHRS &ahrs);
+    void send_battery2(const AP_BattMonitor &battery);
 
     // return a bitmap of active channels. Used by libraries to loop
     // over active channels to send to all active channels    
     static uint8_t active_channel_mask(void) { return mavlink_active; }
+
+    /*
+      send a statustext message to all active MAVLink
+      connections. This function is static so it can be called from
+      any library
+    */
+    static void send_statustext_all(const prog_char_t *msg);
 
 private:
     void        handleMessage(mavlink_message_t * msg);
@@ -311,6 +321,8 @@ private:
 
     void handle_log_request_list(mavlink_message_t *msg, DataFlash_Class &dataflash);
     void handle_log_request_data(mavlink_message_t *msg, DataFlash_Class &dataflash);
+    void handle_log_request_erase(mavlink_message_t *msg, DataFlash_Class &dataflash);
+    void handle_log_request_end(mavlink_message_t *msg, DataFlash_Class &dataflash);
     void handle_log_message(mavlink_message_t *msg, DataFlash_Class &dataflash);
     void handle_log_send(DataFlash_Class &dataflash);
     void handle_log_send_listing(DataFlash_Class &dataflash);
@@ -332,6 +344,7 @@ private:
     void handle_radio_status(mavlink_message_t *msg, DataFlash_Class &dataflash, bool log_radio);
     void handle_serial_control(mavlink_message_t *msg, AP_GPS &gps);
     void lock_channel(mavlink_channel_t chan, bool lock);
+    void handle_set_mode(mavlink_message_t* msg, bool (*set_mode)(uint8_t mode));
 
     // return true if this channel has hardware flow control
     bool have_flow_control(void);

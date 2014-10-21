@@ -17,6 +17,7 @@
 #include <AP_Common.h>
 #include <AP_Progmem.h>
 #include <AP_Param.h>
+#include <StorageManager.h>
 #include <AP_Math.h>
 #include <AP_HAL.h>
 #include <AP_HAL_AVR.h>
@@ -39,10 +40,13 @@
 #include <SITL.h>
 #include <AP_Compass.h>
 #include <AP_Baro.h>
+#include <AP_Baro_Glitch.h>
 #include <AP_InertialSensor.h>
 #include <AP_InertialNav.h>
 #include <AP_NavEKF.h>
 #include <AP_Mission.h>
+#include <AP_Rally.h>
+#include <AP_BattMonitor.h>
 #include <AP_Terrain.h>
 #include <Parameters.h>
 #include <stdio.h>
@@ -59,8 +63,6 @@
 
 const AP_HAL::HAL& hal = AP_HAL_BOARD_DRIVER;
 
-AP_Param param_loader(var_info, 4096);
-
 static Parameters g;
 
 static AP_InertialSensor_HIL ins;
@@ -69,7 +71,8 @@ static AP_GPS gps;
 static AP_Compass_HIL compass;
 static AP_AHRS_NavEKF ahrs(ins, barometer, gps);
 static GPS_Glitch gps_glitch(gps);
-static AP_InertialNav inertial_nav(ahrs, barometer, gps_glitch);
+static Baro_Glitch baro_glitch(barometer);
+static AP_InertialNav inertial_nav(ahrs, barometer, gps_glitch, baro_glitch);
 static AP_Vehicle::FixedWing aparm;
 static AP_Airspeed airspeed(aparm);
 
@@ -100,6 +103,8 @@ static struct {
     float value;
 } user_parameters[100];
 
+// setup the var_info table
+AP_Param param_loader(var_info);
 
 static void usage(void)
 {
@@ -225,7 +230,7 @@ void setup()
     ekf3f = fopen("EKF3.dat", "w");
     ekf4f = fopen("EKF4.dat", "w");
 
-    fprintf(plotf, "time SIM.Roll SIM.Pitch SIM.Yaw BAR.Alt FLIGHT.Roll FLIGHT.Pitch FLIGHT.Yaw FLIGHT.dN FLIGHT.dE FLIGHT.Alt DCM.Roll DCM.Pitch DCM.Yaw EKF.Roll EKF.Pitch EKF.Yaw INAV.dN INAV.dE INAV.Alt EKF.dN EKF.dE EKF.Alt\n");
+    fprintf(plotf, "time SIM.Roll SIM.Pitch SIM.Yaw BAR.Alt FLIGHT.Roll FLIGHT.Pitch FLIGHT.Yaw FLIGHT.dN FLIGHT.dE FLIGHT.Alt AHR2.Roll AHR2.Pitch AHR2.Yaw DCM.Roll DCM.Pitch DCM.Yaw EKF.Roll EKF.Pitch EKF.Yaw INAV.dN INAV.dE INAV.Alt EKF.dN EKF.dE EKF.Alt\n");
     fprintf(plotf2, "time E1 E2 E3 VN VE VD PN PE PD GX GY GZ WN WE MN ME MD MX MY MZ E1ref E2ref E3ref\n");
     fprintf(ekf1f, "timestamp TimeMS Roll Pitch Yaw VN VE VD PN PE PD GX GY GZ\n");
     fprintf(ekf2f, "timestamp TimeMS AX AY AZ VWN VWE MN ME MD MX MY MZ\n");
@@ -380,7 +385,7 @@ void loop()
             float temp = degrees(ekf_euler.z);
 
             if (temp < 0.0f) temp = temp + 360.0f;
-            fprintf(plotf, "%.3f %.1f %.1f %.1f %.2f %.1f %.1f %.1f %.2f %.2f %.2f %.1f %.1f %.1f %.1f %.1f %.1f %.2f %.2f %.2f %.2f %.2f %.2f\n",
+            fprintf(plotf, "%.3f %.1f %.1f %.1f %.2f %.1f %.1f %.1f %.2f %.2f %.2f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.2f %.2f %.2f %.2f %.2f %.2f\n",
                     hal.scheduler->millis() * 0.001f,
                     LogReader.get_sim_attitude().x,
                     LogReader.get_sim_attitude().y,
@@ -388,10 +393,13 @@ void loop()
                     barometer.get_altitude(),
                     LogReader.get_attitude().x,
                     LogReader.get_attitude().y,
-                    LogReader.get_attitude().z,
+                    wrap_180_cd(LogReader.get_attitude().z*100)*0.01f,
                     LogReader.get_inavpos().x,
                     LogReader.get_inavpos().y,
                     LogReader.get_relalt(),
+                    LogReader.get_ahr2_attitude().x,
+                    LogReader.get_ahr2_attitude().y,
+                    wrap_180_cd(LogReader.get_ahr2_attitude().z*100)*0.01f,
                     degrees(DCM_attitude.x),
                     degrees(DCM_attitude.y),
                     degrees(DCM_attitude.z),

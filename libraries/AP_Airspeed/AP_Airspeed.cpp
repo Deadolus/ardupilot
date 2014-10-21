@@ -143,6 +143,10 @@ float AP_Airspeed::get_pressure(void)
     if (!_enable) {
         return 0;
     }
+    if (_hil_set) {
+        _healthy = true;
+        return _hil_pressure;
+    }
     float pressure = 0;
     if (_pin == AP_AIRSPEED_I2C_PIN) {
         _healthy = digital.get_differential_pressure(pressure);
@@ -236,5 +240,8 @@ void AP_Airspeed::setHIL(float airspeed, float diff_pressure, float temperature)
     _raw_airspeed = airspeed;
     _airspeed = airspeed;
     _last_pressure = diff_pressure;
-    _last_update_ms         = hal.scheduler->millis();    
+    _last_update_ms = hal.scheduler->millis();    
+    _hil_pressure = diff_pressure;
+    _hil_set = true;
+    _healthy = true;
 }

@@ -118,10 +118,14 @@ public:
     // multi-device interface
     virtual bool get_gyro_health(uint8_t instance) const { return true; }
     bool get_gyro_health(void) const { return get_gyro_health(_get_primary_gyro()); }
+    bool get_gyro_health_all(void) const;
     virtual uint8_t get_gyro_count(void) const { return 1; };
+    bool gyro_calibrated_ok(uint8_t instance) const { return _gyro_cal_ok[instance]; }
+    bool gyro_calibrated_ok_all() const;
 
     virtual bool get_accel_health(uint8_t instance) const { return true; }
     bool get_accel_health(void) const { return get_accel_health(get_primary_accel()); }
+    bool get_accel_health_all(void) const;
     virtual uint8_t get_accel_count(void) const { return 1; };
 
     // get accel offsets in m/s/s
@@ -163,6 +167,9 @@ public:
             _mpu6000_filter.set(filter_hz);
         }
     }
+
+    // get_filter - return filter in hz
+    virtual uint8_t get_filter() const { return _mpu6000_filter.get(); }
 
     virtual uint16_t error_count(void) const { return 0; }
     virtual bool healthy(void) const { return get_gyro_health() && get_accel_health(); }
@@ -219,6 +226,9 @@ protected:
 
     // board orientation from AHRS
     enum Rotation			_board_orientation;
+
+    // calibrated_ok flags
+    bool                    _gyro_cal_ok[INS_MAX_INSTANCES];
 };
 
 #include "AP_InertialSensor_Oilpan.h"
@@ -232,5 +242,6 @@ protected:
 #include "AP_InertialSensor_L3G4200D.h"
 #include "AP_InertialSensor_MPU9150.h"
 #include "AP_InertialSensor_MPU9250.h"
+#include "AP_InertialSensor_L3GD20.h"
 
 #endif // __AP_INERTIAL_SENSOR_H__

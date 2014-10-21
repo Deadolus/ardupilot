@@ -81,7 +81,7 @@ public:
 
         // Misc
         //
-        k_param_log_bitmask = 20,
+        k_param_log_bitmask_old = 20,           // Deprecated
         k_param_log_last_filenumber,            // *** Deprecated - remove
                                                 // with next eeprom number
                                                 // change
@@ -117,8 +117,13 @@ public:
         k_param_serial2_baud,
         k_param_land_repositioning,
         k_param_sonar, // sonar object
-        k_param_ekfcheck_compass_thresh,// 54
+        k_param_ekfcheck_thresh,
         k_param_terrain,
+        k_param_acro_expo,
+        k_param_throttle_deadzone,
+        k_param_optflow,
+        k_param_dcmcheck_thresh,        // 59
+        k_param_log_bitmask,
 
         // 65: AP_Limits Library
         k_param_limits = 65,            // deprecated - remove
@@ -126,7 +131,8 @@ public:
         k_param_geofence_limit,         // deprecated - remove
         k_param_altitude_limit,         // deprecated - remove
         k_param_fence,
-        k_param_gps_glitch,             // 70
+        k_param_gps_glitch,
+        k_param_baro_glitch,            // 71
 
         //
         // 75: Singlecopter, CoaxCopter
@@ -173,6 +179,7 @@ public:
         k_param_telem_delay,
         k_param_gcs2,
         k_param_serial2_baud_old, // deprecated
+        k_param_serial2_protocol,
 
         //
         // 140: Sensor parameters
@@ -187,7 +194,7 @@ public:
         k_param_compass,
         k_param_sonar_enabled_old, // deprecated
         k_param_frame_orientation,
-        k_param_optflow_enabled,
+        k_param_optflow_enabled,    // deprecated
         k_param_fs_batt_voltage,
         k_param_ch7_option,
         k_param_auto_slew_rate,     // deprecated - can be deleted
@@ -319,6 +326,7 @@ public:
     AP_Int16        serial1_baud;
 #if MAVLINK_COMM_NUM_BUFFERS > 2
     AP_Int16        serial2_baud;
+    AP_Int8         serial2_protocol;
 #endif
     AP_Int8         telem_delay;
 
@@ -334,7 +342,6 @@ public:
     AP_Int16        gps_hdop_good;              // GPS Hdop value at or below this value represent a good position
 
     AP_Int8         compass_enabled;
-    AP_Int8         optflow_enabled;
     AP_Int8         super_simple;
     AP_Int16        rtl_alt_final;
 
@@ -361,6 +368,7 @@ public:
     AP_Int16        failsafe_throttle_value;
     AP_Int16        throttle_cruise;
     AP_Int16        throttle_mid;
+    AP_Int16        throttle_deadzone;
 
     // Flight modes
     //
@@ -374,7 +382,7 @@ public:
 
     // Misc
     //
-    AP_Int16        log_bitmask;
+    AP_Int32        log_bitmask;
     AP_Int8         esc_calibrate;
     AP_Int8         radio_tuning;
     AP_Int16        radio_tuning_high;
@@ -385,7 +393,8 @@ public:
     AP_Int8         arming_check;
 
     AP_Int8         land_repositioning;
-    AP_Float        ekfcheck_compass_thresh;
+    AP_Float        ekfcheck_thresh;
+    AP_Float        dcmcheck_thresh;
 
 #if FRAME_CONFIG ==     HELI_FRAME
     // Heli
@@ -431,6 +440,7 @@ public:
     AP_Float                acro_balance_roll;
     AP_Float                acro_balance_pitch;
     AP_Int8                 acro_trainer;
+    AP_Float                acro_expo;
 
     // PI/D controllers
 #if FRAME_CONFIG == HELI_FRAME

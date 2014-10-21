@@ -160,6 +160,9 @@ public:
     // accelerometer values in the earth frame in m/s/s
     const Vector3f &get_accel_ef(void) const { return _accel_ef[_ins.get_primary_accel()]; }
 
+    // get yaw rate in earth frame in radians/sec
+    float get_yaw_rate_earth(void) const { return get_gyro() * get_dcm_matrix().c; }
+
     // Methods
     virtual void update(void) = 0;
 
@@ -199,7 +202,7 @@ public:
 
     // get our current position estimate. Return true if a position is available,
     // otherwise false. This call fills in lat, lng and alt
-    virtual bool get_position(struct Location &loc) = 0;
+    virtual bool get_position(struct Location &loc) const = 0;
 
     // return a wind estimation vector, in m/s
     virtual Vector3f wind_estimate(void) = 0;
@@ -338,6 +341,9 @@ public:
     // is the AHRS subsystem healthy?
     virtual bool healthy(void) = 0;
 
+    // true if the AHRS has completed initialisation
+    virtual bool initialised(void) const { return true; };
+
 protected:
     AHRS_VehicleClass _vehicle_class;
 
@@ -363,6 +369,9 @@ protected:
     // update_trig - recalculates _cos_roll, _cos_pitch, etc based on latest attitude
     //      should be called after _dcm_matrix is updated
     void update_trig(void);
+
+    // update roll_sensor, pitch_sensor and yaw_sensor
+    void update_cd_values(void);
 
     // pointer to compass object, if available
     Compass         * _compass;

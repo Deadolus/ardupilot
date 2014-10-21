@@ -129,6 +129,12 @@ GCS_MAVLINK::queued_param_send()
     }
     count = bytes_allowed / (MAVLINK_MSG_ID_PARAM_VALUE_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES);
 
+    // when we don't have flow control we really need to keep the
+    // param download very slow, or it tends to stall
+    if (!have_flow_control() && count > 5) {
+        count = 5;
+    }
+
     while (_queued_parameter != NULL && count--) {
         AP_Param      *vp;
         float value;
@@ -438,6 +444,7 @@ void GCS_MAVLINK::handle_request_data_stream(mavlink_message_t *msg, bool save)
     mavlink_request_data_stream_t packet;
     mavlink_msg_request_data_stream_decode(msg, &packet);
 
+    // exit immediately if this command is not meant for this vehicle
     if (mavlink_check_target(packet.target_system, packet.target_component))
         return;
 
@@ -501,6 +508,8 @@ void GCS_MAVLINK::handle_param_request_list(mavlink_message_t *msg)
 {
     mavlink_param_request_list_t packet;
     mavlink_msg_param_request_list_decode(msg, &packet);
+
+    // exit immediately if this command is not meant for this vehicle
     if (mavlink_check_target(packet.target_system,packet.target_component)) {
         return;
     }
@@ -523,6 +532,8 @@ void GCS_MAVLINK::handle_param_request_read(mavlink_message_t *msg)
 {
     mavlink_param_request_read_t packet;
     mavlink_msg_param_request_read_decode(msg, &packet);
+
+    // exit immediately if this command is not meant for this vehicle
     if (mavlink_check_target(packet.target_system,packet.target_component)) {
         return;
     }
@@ -565,6 +576,7 @@ void GCS_MAVLINK::handle_param_set(mavlink_message_t *msg, DataFlash_Class *Data
     mavlink_param_set_t packet;
     mavlink_msg_param_set_decode(msg, &packet);
 
+    // exit immediately if this command is not meant for this vehicle
     if (mavlink_check_target(packet.target_system, packet.target_component)) {
         return;
     }
@@ -630,15 +642,17 @@ void GCS_MAVLINK::handle_param_set(mavlink_message_t *msg, DataFlash_Class *Data
 void
 GCS_MAVLINK::send_text(gcs_severity severity, const char *str)
 {
-    if (severity == SEVERITY_LOW) {
+    if (severity != SEVERITY_LOW && 
+        comm_get_txspace(chan) >= 
+        MAVLINK_NUM_NON_PAYLOAD_BYTES+MAVLINK_MSG_ID_STATUSTEXT_LEN) {
+        // send immediately
+        mavlink_msg_statustext_send(chan, severity, str);
+    } else {
         // send via the deferred queuing system
         mavlink_statustext_t *s = &pending_status;
         s->severity = (uint8_t)severity;
         strncpy((char *)s->text, str, sizeof(s->text));
         send_message(MSG_STATUSTEXT);
-    } else {
-        // send immediately
-        mavlink_msg_statustext_send(chan, severity, str);
     }
 }
 
@@ -704,6 +718,8 @@ void GCS_MAVLINK::handle_mission_item(mavlink_message_t *msg, AP_Mission &missio
     struct AP_Mission::Mission_Command cmd = {};
 
     mavlink_msg_mission_item_decode(msg, &packet);
+
+    // exit immediately if this command is not meant for this vehicle
     if (mavlink_check_target(packet.target_system,packet.target_component)) {
         return;
     }
@@ -787,7 +803,8 @@ void GCS_MAVLINK::handle_mission_item(mavlink_message_t *msg, AP_Mission &missio
     } else {
         waypoint_timelast_request = hal.scheduler->millis();
         // if we have enough space, then send the next WP immediately
-        if (comm_get_txspace(chan) - MAVLINK_NUM_NON_PAYLOAD_BYTES >= MAVLINK_MSG_ID_MISSION_ITEM_LEN) {
+        if (comm_get_txspace(chan) >= 
+            MAVLINK_NUM_NON_PAYLOAD_BYTES+MAVLINK_MSG_ID_MISSION_ITEM_LEN) {
             queued_waypoint_send();
         } else {
             send_message(MSG_NEXT_WAYPOINT);
@@ -922,9 +939,8 @@ GCS_MAVLINK::update(void (*run_cli)(AP_HAL::UARTDriver *))
  */
 bool GCS_MAVLINK::send_gps_raw(AP_GPS &gps)
 {
-
-    int16_t payload_space = comm_get_txspace(chan) - MAVLINK_NUM_NON_PAYLOAD_BYTES;
-    if (payload_space >= MAVLINK_MSG_ID_GPS_RAW_INT_LEN) {
+    if (comm_get_txspace(chan) >= 
+        MAVLINK_MSG_ID_GPS_RAW_INT_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES) {
         gps.send_mavlink_gps_raw(chan);
     } else {
         return false;
@@ -932,8 +948,7 @@ bool GCS_MAVLINK::send_gps_raw(AP_GPS &gps)
 
 #if GPS_RTK_AVAILABLE
     if (gps.highest_supported_status(0) > AP_GPS::GPS_OK_FIX_3D) {
-        payload_space = comm_get_txspace(chan) - MAVLINK_NUM_NON_PAYLOAD_BYTES;
-        if (payload_space >= MAVLINK_MSG_ID_GPS_RTK_LEN) {
+        if (comm_get_txspace(chan) >= MAVLINK_NUM_NON_PAYLOAD_BYTES+MAVLINK_MSG_ID_GPS_RTK_LEN) {
             gps.send_mavlink_gps_rtk(chan);
         }
 
@@ -944,15 +959,14 @@ bool GCS_MAVLINK::send_gps_raw(AP_GPS &gps)
 
     if (gps.num_sensors() > 1 && gps.status(1) > AP_GPS::NO_GPS) {
 
-        payload_space = comm_get_txspace(chan) - MAVLINK_NUM_NON_PAYLOAD_BYTES;
-        if (payload_space >= MAVLINK_MSG_ID_GPS2_RAW_LEN) {
+        if (comm_get_txspace(chan) >= MAVLINK_NUM_NON_PAYLOAD_BYTES+MAVLINK_MSG_ID_GPS2_RAW_LEN) {
             gps.send_mavlink_gps2_raw(chan);
         }
 
 #if GPS_RTK_AVAILABLE
         if (gps.highest_supported_status(1) > AP_GPS::GPS_OK_FIX_3D) {
-            payload_space = comm_get_txspace(chan) - MAVLINK_NUM_NON_PAYLOAD_BYTES;
-            if (payload_space >= MAVLINK_MSG_ID_GPS2_RTK_LEN) {
+            if (comm_get_txspace(chan) >= 
+                MAVLINK_NUM_NON_PAYLOAD_BYTES+MAVLINK_MSG_ID_GPS2_RTK_LEN) {
                 gps.send_mavlink_gps2_rtk(chan);
             }
         }
@@ -1127,4 +1141,75 @@ void GCS_MAVLINK::send_ahrs(AP_AHRS &ahrs)
         0,
         ahrs.get_error_rp(),
         ahrs.get_error_yaw());
+}
+
+/*
+  send a statustext message to all active MAVLink connections
+ */
+void GCS_MAVLINK::send_statustext_all(const prog_char_t *msg)
+{
+    for (uint8_t i=0; i<MAVLINK_COMM_NUM_BUFFERS; i++) {
+        if ((1U<<i) & mavlink_active) {
+            mavlink_channel_t chan = (mavlink_channel_t)i;
+            if (comm_get_txspace(chan) >= MAVLINK_NUM_NON_PAYLOAD_BYTES + MAVLINK_MSG_ID_STATUSTEXT_LEN) {
+#if CONFIG_HAL_BOARD == HAL_BOARD_APM1 || CONFIG_HAL_BOARD == HAL_BOARD_APM2
+                char msg2[50];
+                strncpy_P(msg2, msg, sizeof(msg2));
+                mavlink_msg_statustext_send(chan,
+                                            SEVERITY_HIGH,
+                                            msg2);
+#else
+                mavlink_msg_statustext_send(chan,
+                                            SEVERITY_HIGH,
+                                            msg);
+#endif
+            }
+        }
+    }
+}
+
+// report battery2 state
+void GCS_MAVLINK::send_battery2(const AP_BattMonitor &battery)
+{
+    float voltage;
+    if (battery.voltage2(voltage)) {
+        mavlink_msg_battery2_send(chan, voltage*1000, -1);
+    }
+}
+
+/*
+  handle a SET_MODE MAVLink message
+ */
+void GCS_MAVLINK::handle_set_mode(mavlink_message_t* msg, bool (*set_mode)(uint8_t mode))
+{
+    uint8_t result = MAV_RESULT_FAILED;
+    mavlink_set_mode_t packet;
+    mavlink_msg_set_mode_decode(msg, &packet);
+
+    // exit immediately if this command is not meant for this vehicle
+    if (mavlink_check_target(packet.target_system, 0)) {
+        return;
+    }
+
+    // only accept custom modes because there is no easy mapping from Mavlink flight modes to AC flight modes
+    if (packet.base_mode & MAV_MODE_FLAG_CUSTOM_MODE_ENABLED) {
+        if (set_mode(packet.custom_mode)) {
+            result = MAV_RESULT_ACCEPTED;
+        }
+    } else if (packet.base_mode == MAV_MODE_FLAG_DECODE_POSITION_SAFETY) {
+        // set the safety switch position. Must be in a command by itself
+        if (packet.custom_mode == 0) {
+            // turn safety off (pwm outputs flow to the motors)
+            hal.rcout->force_safety_off();
+            result = MAV_RESULT_ACCEPTED;
+        } else if (packet.custom_mode == 1) {
+            // turn safety on (no pwm outputs to the motors)
+            if (hal.rcout->force_safety_on()) {
+                result = MAV_RESULT_ACCEPTED;
+            }
+        }
+    }
+
+    // send ACK or NAK
+    mavlink_msg_command_ack_send_buf(msg, chan, MAVLINK_MSG_ID_SET_MODE, result);
 }

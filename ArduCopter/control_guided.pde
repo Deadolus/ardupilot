@@ -8,7 +8,14 @@
  # define GUIDED_LOOK_AT_TARGET_MIN_DISTANCE_CM     500     // point nose at target if it is more than 5m away
 #endif
 
-static bool guided_pilot_yaw_override_yaw = false;
+struct Guided_Limit {
+    uint32_t timeout_ms;  // timeout (in seconds) from the time that guided is invoked
+    float alt_min_cm;   // lower altitude limit in cm above home (0 = no limit)
+    float alt_max_cm;   // upper altitude limit in cm above home (0 = no limit)
+    float horiz_max_cm; // horizontal position limit in cm from where guided mode was initiated (0 = no limit)
+    uint32_t start_time;// system time in milliseconds that control was handed to the external computer
+    Vector3f start_pos; // start position as a distance from home in cm.  used for checking horiz_max limit
+} guided_limit;
 
 // guided_init - initialise guided controller
 static bool guided_init(bool ignore_checks)
@@ -22,6 +29,24 @@ static bool guided_init(bool ignore_checks)
     }else{
         return false;
     }
+}
+
+
+// guided_takeoff_start - initialises waypoint controller to implement take-off
+static void guided_takeoff_start(float final_alt)
+{
+    guided_mode = Guided_TakeOff;
+    
+    // initialise wpnav destination
+    Vector3f target_pos = inertial_nav.get_position();
+    target_pos.z = final_alt;
+    wp_nav.set_wp_destination(target_pos);
+
+    // initialise yaw
+    set_auto_yaw_mode(AUTO_YAW_HOLD);
+
+    // tell motors to do a slow start
+    motors.slow_start(true);
 }
 
 // initialise guided mode's position controller
@@ -40,7 +65,6 @@ void guided_pos_control_start()
     stopping_point.z = inertial_nav.get_altitude();
     wp_nav.get_wp_stopping_point_xy(stopping_point);
     wp_nav.set_wp_destination(stopping_point);
-    guided_pilot_yaw_override_yaw = false;
 
     // initialise yaw
     set_auto_yaw_mode(get_default_auto_yaw_mode(false));
@@ -97,14 +121,58 @@ static void guided_run()
         return;
     }
 
-    // run position or velocity controller
-    if (guided_mode == Guided_WP) {
+    // call the correct auto controller
+    switch (guided_mode) {
+
+    case Guided_TakeOff:
+        // run takeoff controller
+        guided_takeoff_run();
+        break;
+
+    case Guided_WP:
+        // run position controller
         guided_pos_control_run();
-    } else {
-        // must be velocity controller
+        break;
+
+    case Guided_Velocity:
+        // run velocity controller
         guided_vel_control_run();
     }
  }
+
+// guided_takeoff_run - takeoff in guided mode
+//      called by guided_run at 100hz or more
+static void guided_takeoff_run()
+{
+    // if not auto armed set throttle to zero and exit immediately
+    if(!ap.auto_armed) {
+        // initialise wpnav targets
+        wp_nav.shift_wp_origin_to_current_pos();
+        // reset attitude control targets
+        attitude_control.relax_bf_rate_controller();
+        attitude_control.set_yaw_target_to_current_heading();
+        attitude_control.set_throttle_out(0, false);
+        // tell motors to do a slow start
+        motors.slow_start(true);
+        return;
+    }
+
+    // process pilot's yaw input
+    float target_yaw_rate = 0;
+    if (!failsafe.radio) {
+        // get pilot's desired yaw rate
+        target_yaw_rate = get_pilot_desired_yaw_rate(g.rc_4.control_in);
+    }
+
+    // run waypoint controller
+    wp_nav.update_wpnav();
+
+    // call z-axis position controller (wpnav should have already updated it's alt target)
+    pos_control.update_z_controller();
+
+    // roll & pitch from waypoint controller, yaw rate from pilot
+    attitude_control.angle_ef_roll_pitch_rate_ef_yaw(wp_nav.get_roll(), wp_nav.get_pitch(), target_yaw_rate);
+}
 
 // guided_pos_control_run - runs the guided position controller
 // called from guided_run
@@ -161,4 +229,69 @@ static void guided_vel_control_run()
         // roll, pitch from waypoint controller, yaw heading from auto_heading()
         attitude_control.angle_ef_roll_pitch_yaw(pos_control.get_roll(), pos_control.get_pitch(), get_auto_heading(), true);
     }
+}
+
+// Guided Limit code
+
+// guided_limit_clear - clear/turn off guided limits
+static void guided_limit_clear()
+{
+    guided_limit.timeout_ms = 0;
+    guided_limit.alt_min_cm = 0.0f;
+    guided_limit.alt_max_cm = 0.0f;
+    guided_limit.horiz_max_cm = 0.0f;
+}
+
+// guided_limit_set - set guided timeout and movement limits
+static void guided_limit_set(uint32_t timeout_ms, float alt_min_cm, float alt_max_cm, float horiz_max_cm)
+{
+    guided_limit.timeout_ms = timeout_ms;
+    guided_limit.alt_min_cm = alt_min_cm;
+    guided_limit.alt_max_cm = alt_max_cm;
+    guided_limit.horiz_max_cm = horiz_max_cm;
+}
+
+// guided_limit_init_time_and_pos - initialise guided start time and position as reference for limit checking
+//  only called from AUTO mode's auto_nav_guided_start function
+static void guided_limit_init_time_and_pos()
+{
+    // initialise start time
+    guided_limit.start_time = hal.scheduler->millis();
+
+    // initialise start position from current position
+    guided_limit.start_pos = inertial_nav.get_position();
+}
+
+// guided_limit_check - returns true if guided mode has breached a limit
+//  used when guided is invoked from the NAV_GUIDED_ENABLE mission command
+static bool guided_limit_check()
+{
+    // check if we have passed the timeout
+    if ((guided_limit.timeout_ms > 0) && (millis() - guided_limit.start_time >= guided_limit.timeout_ms)) {
+        return true;
+    }
+
+    // get current location
+    const Vector3f& curr_pos = inertial_nav.get_position();
+
+    // check if we have gone below min alt
+    if ((guided_limit.alt_min_cm != 0.0f) && (curr_pos.z < guided_limit.alt_min_cm)) {
+        return true;
+    }
+
+    // check if we have gone above max alt
+    if ((guided_limit.alt_max_cm != 0.0f) && (curr_pos.z > guided_limit.alt_max_cm)) {
+        return true;
+    }
+
+    // check if we have gone beyond horizontal limit
+    if (guided_limit.horiz_max_cm > 0.0f) {
+        float horiz_move = pv_get_horizontal_distance_cm(guided_limit.start_pos, curr_pos);
+        if (horiz_move > guided_limit.horiz_max_cm) {
+            return true;
+        }
+    }
+
+    // if we got this far we must be within limits
+    return false;
 }
