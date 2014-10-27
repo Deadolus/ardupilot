@@ -252,6 +252,8 @@ static void do_aux_switch_function(int8_t ch_function, uint8_t ch_flag)
 #if CAMERA == ENABLED
         case AUX_SWITCH_CAMERA_TRIGGER:
             if (ch_flag == AUX_SWITCH_HIGH) {
+                mavlink_send_text(MAVLINK_COMM_0, SEVERITY_USER_RESPONSE, "AUX_BEEP");
+                mavlink_send_text(MAVLINK_COMM_1, SEVERITY_USER_RESPONSE, "AUX_BEEP");
                 do_take_picture();
             }
             break;
