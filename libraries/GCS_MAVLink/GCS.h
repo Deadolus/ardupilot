@@ -49,6 +49,8 @@ enum ap_message {
     MSG_RANGEFINDER,
     MSG_TERRAIN,
     MSG_BATTERY2,
+    MSG_CAMERA_FEEDBACK,
+    MSG_MOUNT_STATUS,
     MSG_SWARMIX,
     MSG_RETRY_DEFERRED // this must be last
 };

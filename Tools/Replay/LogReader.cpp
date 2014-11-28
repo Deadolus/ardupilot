@@ -27,8 +27,8 @@ LogReader::LogReader(AP_AHRS &_ahrs, AP_InertialSensor &_ins, AP_Baro_HIL &_baro
     compass(_compass),
     gps(_gps),
     airspeed(_airspeed),
-    accel_mask(3),
-    gyro_mask(3)
+    accel_mask(7),
+    gyro_mask(7)
 {}
 
 bool LogReader::open_log(const char *logfile)
@@ -224,8 +224,14 @@ void LogReader::process_copter(uint8_t type, uint8_t *data, uint16_t length)
 
     case LOG_COPTER_ATTITUDE_MSG: {
         struct log_Copter_Attitude msg;
-        if(sizeof(msg) != length) {
-            printf("Bad ATTITUDE length %u should be %u\n", length, sizeof(msg));
+        if (sizeof(msg) == length+sizeof(uint16_t)*2) {
+            // old style, without errors
+            memset(&msg, 0, sizeof(msg));
+            memcpy(&msg, data, length);
+        } else if (sizeof(msg) == length) {
+            memcpy(&msg, data, sizeof(msg));
+        } else {
+            printf("Bad ATTITUDE length %u should be %u\n", (unsigned)length, (unsigned)sizeof(msg));
             exit(1);
         }
         memcpy(&msg, data, sizeof(msg));
@@ -252,9 +258,12 @@ void LogReader::process_copter(uint8_t type, uint8_t *data, uint16_t length)
 
 bool LogReader::set_parameter(const char *name, float value)
 {
-    if (strcmp(name, "GPS_TYPE") == 0) {
-        // ignore this one
-        return true;
+    const char *ignore_parms[] = { "GPS_TYPE", "AHRS_EKF_USE" };
+    for (uint8_t i=0; i<sizeof(ignore_parms)/sizeof(ignore_parms[0]); i++) {
+        if (strcmp(name, ignore_parms[i]) == 0) {
+            ::printf("Ignoring set of %s to %f\n", name, value);
+            return true;
+        }
     }
     enum ap_var_type var_type;
     AP_Param *vp = AP_Param::find(name, &var_type);
@@ -380,6 +389,23 @@ bool LogReader::update(uint8_t &type)
         break;
     }
 
+    case LOG_IMU3_MSG: {
+        struct log_IMU msg;
+        if(sizeof(msg) != f.length) {
+            printf("Bad IMU3 length\n");
+            exit(1);
+        }
+        memcpy(&msg, data, sizeof(msg));
+        wait_timestamp(msg.timestamp);
+        if (gyro_mask & 4) {
+            ins.set_gyro(2, Vector3f(msg.gyro_x, msg.gyro_y, msg.gyro_z));
+        }
+        if (accel_mask & 4) {
+            ins.set_accel(2, Vector3f(msg.accel_x, msg.accel_y, msg.accel_z));
+        }
+        break;
+    }
+
     case LOG_GPS_MSG: {
         struct log_GPS msg;
         if(sizeof(msg) != f.length) {
@@ -455,11 +481,17 @@ bool LogReader::update(uint8_t &type)
 
     case LOG_BARO_MSG: {
         struct log_BARO msg;
-        if(sizeof(msg) != f.length) {
-            printf("Bad LOG_BARO length\n");
+        if (sizeof(msg) == f.length+sizeof(float)) {
+            // old style, without climbrate
+            memset(&msg, 0, sizeof(msg));
+            memcpy(&msg, data, f.length);
+        } else if (sizeof(msg) == f.length) {
+            memcpy(&msg, data, sizeof(msg));
+        } else {
+            printf("Bad LOG_BARO length %u expected %u\n",
+                   (unsigned)f.length, (unsigned)sizeof(msg));
             exit(1);
         }
-        memcpy(&msg, data, sizeof(msg));
         wait_timestamp(msg.timestamp);
         baro.setHIL(msg.pressure, msg.temperature*0.01f);
         break;
