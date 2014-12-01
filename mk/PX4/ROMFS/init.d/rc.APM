@@ -373,7 +373,7 @@ then
     sh /etc/init.d/rc.error           
   fi
 fi
-
+set deviceA /dev/ttyS6
 echo Starting ArduPilot $deviceA $deviceC $deviceD
 if ArduPilot -d $deviceA -d2 $deviceC -d3 $deviceD start
 then

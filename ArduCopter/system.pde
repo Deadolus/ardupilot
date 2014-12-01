@@ -394,7 +394,10 @@ static void check_usb_mux(void)
     if (ap.usb_connected) {
         hal.uartA->begin(map_baudrate(g.serial0_baud));
     } else {
+//we moved the uartA port to Serial4 on the pixhawk, so DON'T change the baudrate!
+#if CONFIG_HAL_BOARD != HAL_BOARD_PX4 
         hal.uartA->begin(map_baudrate(g.serial1_baud));
+#endif
     }
 #endif
 }
