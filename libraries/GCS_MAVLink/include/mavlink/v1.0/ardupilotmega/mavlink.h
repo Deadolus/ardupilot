@@ -23,5 +23,6 @@
 
 #include "version.h"
 #include "ardupilotmega.h"
+#include "../swarmix/mavlink_msg_swarmix_net.h"
 
 #endif // MAVLINK_H
