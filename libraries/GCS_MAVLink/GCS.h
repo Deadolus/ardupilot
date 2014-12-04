@@ -172,7 +172,7 @@ public:
                   STREAM_EXTRA2,
                   STREAM_EXTRA3,
                   STREAM_PARAMS,
-                  STREAM_SWARMIX,
+                  STREAM_SWARMIX=7,
                   NUM_STREAMS};
 
     // see if we should send a stream now. Called at 50Hz

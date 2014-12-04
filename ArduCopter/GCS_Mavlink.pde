@@ -663,6 +663,11 @@ bool GCS_MAVLINK::try_send_message(enum ap_message id)
         mavlink_msg_swarmix_net_send(chan,mavlink_system.sysid,current_loc.lat,current_loc.lng,ahrs.get_gps().location().alt*10,(ahrs.get_gps().location().alt - ahrs.get_home().alt) * 10,ahrs.get_gps().ground_course_cd(),ahrs.get_gps().ground_speed(),255,ahrs.roll,ahrs.pitch,ahrs.yaw,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,battery.voltage()*1000,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
         //send it also locally (usb)
         mavlink_msg_swarmix_net_send(MAVLINK_COMM_0,mavlink_system.sysid,current_loc.lat,current_loc.lng,ahrs.get_gps().location().alt*10,(ahrs.get_gps().location().alt - ahrs.get_home().alt) * 10,ahrs.get_gps().ground_course_cd(),ahrs.get_gps().ground_speed(),255,ahrs.roll,ahrs.pitch,ahrs.yaw,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,battery.voltage()*1000,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
+        mavlink_msg_swarmix_net_send(MAVLINK_COMM_1,mavlink_system.sysid,current_loc.lat,current_loc.lng,ahrs.get_gps().location().alt*10,(ahrs.get_gps().location().alt - ahrs.get_home().alt) * 10,ahrs.get_gps().ground_course_cd(),ahrs.get_gps().ground_speed(),255,ahrs.roll,ahrs.pitch,ahrs.yaw,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,battery.voltage()*1000,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
+        mavlink_msg_swarmix_net_send(MAVLINK_COMM_2,mavlink_system.sysid,current_loc.lat,current_loc.lng,ahrs.get_gps().location().alt*10,(ahrs.get_gps().location().alt - ahrs.get_home().alt) * 10,ahrs.get_gps().ground_course_cd(),ahrs.get_gps().ground_speed(),255,ahrs.roll,ahrs.pitch,ahrs.yaw,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,battery.voltage()*1000,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
+        mavlink_msg_swarmix_net_send(MAVLINK_COMM_3,mavlink_system.sysid,current_loc.lat,current_loc.lng,ahrs.get_gps().location().alt*10,(ahrs.get_gps().location().alt - ahrs.get_home().alt) * 10,ahrs.get_gps().ground_course_cd(),ahrs.get_gps().ground_speed(),255,ahrs.roll,ahrs.pitch,ahrs.yaw,accel.x * 1000.0f / GRAVITY_MSS,accel.y * 1000.0f / GRAVITY_MSS,accel.z * 1000.0f / GRAVITY_MSS,battery.voltage()*1000,swarmixRssiA,swarmixRssiB,swarmixSnrA,swarmixSnrB);
+
+
         break;
 
 
@@ -737,6 +742,15 @@ const AP_Param::GroupInfo GCS_MAVLINK::var_info[] PROGMEM = {
     // @User: Advanced
     AP_GROUPINFO("EXTRA2",   6, GCS_MAVLINK, streamRates[6],  0),
 
+    // @Param: SWARMIX
+    // @DisplayName: Swarmix  stream rate to ground station
+    // @Description: Stream rate of SWARMIX_NET to ground station
+    // @Units: Hz
+    // @Range: 0 10
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("SWARMIX",   7, GCS_MAVLINK, streamRates[7],  0),
+
     // @Param: EXTRA3
     // @DisplayName: Extra data type 3 stream rate to ground station
     // @Description: Stream rate of AHRS, HWSTATUS, and SYSTEM_TIME to ground station
@@ -744,7 +758,7 @@ const AP_Param::GroupInfo GCS_MAVLINK::var_info[] PROGMEM = {
     // @Range: 0 10
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("EXTRA3",   7, GCS_MAVLINK, streamRates[7],  0),
+  //  AP_GROUPINFO("EXTRA3",   7, GCS_MAVLINK, streamRates[7],  0),
 
     // @Param: PARAMS
     // @DisplayName: Parameter stream rate to ground station
@@ -1645,6 +1659,8 @@ void GCS_MAVLINK::handleMessage(mavlink_message_t* msg)
         	mavlink_msg_swarmix_net_send_t(MAVLINK_COMM_1, &swarmix);
         } else { //comes from somewhere else
         	mavlink_msg_swarmix_net_send_t(MAVLINK_COMM_0, &swarmix);
+        	mavlink_msg_swarmix_net_send_t(MAVLINK_COMM_2, &swarmix);
+        	//mavlink_msg_swarmix_net_send_t(MAVLINK_COMM_3, &swarmix);
         }
 #endif
 
